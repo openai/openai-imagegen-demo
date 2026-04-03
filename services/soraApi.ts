@@ -217,6 +217,15 @@ export interface GeneratePhotoboothRequest {
   styleIds: string[];
 }
 
+export type PhotoboothStreamEventName =
+  | "session-start"
+  | "style-start"
+  | "style-partial"
+  | "style-final"
+  | "style-error"
+  | "session-error"
+  | "session-complete";
+
 export interface PhotoboothStyleResult {
   styleId: string;
   label: string;
@@ -233,20 +242,123 @@ export interface GeneratePhotoboothResponse {
   results: PhotoboothStyleResult[];
 }
 
-export const generatePhotoboothStyles = async ({
+type SseChunk = {
+  eventName: string;
+  data: string;
+};
+
+const parseSseChunk = (rawChunk: string): SseChunk | null => {
+  const lines = rawChunk.split("\n");
+  let eventName = "message";
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith(":")) continue;
+    if (line.startsWith("event:")) {
+      eventName = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (!dataLines.length) return null;
+  return { eventName, data: dataLines.join("\n") };
+};
+
+export interface StreamPhotoboothRequest extends GeneratePhotoboothRequest {
+  signal?: AbortSignal;
+  onEvent: (eventName: PhotoboothStreamEventName, payload: Record<string, unknown>) => void;
+}
+
+export const streamPhotoboothStyles = async ({
   imageDataUrl,
   styleIds,
-}: GeneratePhotoboothRequest): Promise<GeneratePhotoboothResponse> => {
+  signal,
+  onEvent,
+}: StreamPhotoboothRequest): Promise<void> => {
   const response = await fetch(`${API_BASE}/photobooth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageDataUrl, styleIds }),
+    signal,
   });
-  const payload = await parseJson<GeneratePhotoboothResponse>(response);
   if (!response.ok) {
+    const payload = await parseJson<GeneratePhotoboothResponse>(response);
     throw buildHttpError(response, payload);
   }
-  return payload;
+
+  if (!response.body) {
+    throw new Error("No stream body returned by server.");
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/event-stream")) {
+    const payload = await parseJson<GeneratePhotoboothResponse>(response);
+    for (const result of payload.results ?? []) {
+      if (result?.imageUrl) {
+        onEvent("style-final", {
+          styleId: result.styleId,
+          label: result.label,
+          imageDataUrl: result.imageUrl,
+        });
+      } else {
+        onEvent("style-error", {
+          styleId: result.styleId,
+          message: result.error ?? "Style generation failed.",
+        });
+      }
+    }
+    onEvent("session-complete", {});
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r/g, "");
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const chunk = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      const parsed = parseSseChunk(chunk);
+      if (parsed && parsed.data !== "[DONE]") {
+        let payload: Record<string, unknown>;
+        try {
+          payload = JSON.parse(parsed.data) as Record<string, unknown>;
+        } catch {
+          payload = { message: parsed.data };
+        }
+
+        onEvent(parsed.eventName as PhotoboothStreamEventName, payload);
+      }
+
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+
+  const remaining = buffer.trim();
+  if (remaining) {
+    const parsed = parseSseChunk(remaining);
+    if (parsed && parsed.data !== "[DONE]") {
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(parsed.data) as Record<string, unknown>;
+      } catch {
+        payload = { message: parsed.data };
+      }
+      onEvent(parsed.eventName as PhotoboothStreamEventName, payload);
+    }
+  }
 };
 
 export { ensureOk };

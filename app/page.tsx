@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImageUp, Sparkles } from "lucide-react";
+import { Camera, ImageUp, RotateCcw, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
@@ -53,7 +53,7 @@ export default function Page() {
     if (!cameraStream || !videoRef.current) return;
     videoRef.current.srcObject = cameraStream;
     videoRef.current.play().catch(() => {
-      setCameraError("Unable to start video preview.");
+      setCameraError("Unable to start camera preview.");
     });
   }, [cameraStream]);
 
@@ -63,8 +63,16 @@ export default function Page() {
     setCameraStream(null);
   }, [cameraStream]);
 
+  const resetAll = useCallback(() => {
+    setSelectedImage(null);
+    setSelectedStyles([]);
+    setCameraError("");
+    stopCamera();
+  }, [stopCamera]);
+
   const startCamera = useCallback(async () => {
     setCameraError("");
+    setSelectedImage(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
@@ -72,7 +80,7 @@ export default function Page() {
       });
       setCameraStream(stream);
     } catch {
-      setCameraError("Camera access failed. Please upload a photo instead.");
+      setCameraError("Camera access failed. You can still upload an image.");
     }
   }, []);
 
@@ -80,12 +88,14 @@ export default function Page() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
+
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 960;
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) return;
+
     context.drawImage(video, 0, 0, width, height);
     const dataUrl = canvas.toDataURL("image/png");
     setSelectedImage({
@@ -100,23 +110,27 @@ export default function Page() {
     fileInputRef.current?.click();
   }, []);
 
-  const onFileChange = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setSelectedImage({
-        dataUrl,
-        source: "upload",
-        name: file.name || `upload-${Date.now()}.png`,
-      });
-      stopCamera();
-    } catch {
-      setCameraError("Unable to process uploaded image.");
-    } finally {
-      event.target.value = "";
-    }
-  }, [stopCamera]);
+  const onFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        setSelectedImage({
+          dataUrl,
+          source: "upload",
+          name: file.name || `upload-${Date.now()}.png`,
+        });
+        stopCamera();
+      } catch {
+        setCameraError("Unable to process uploaded image.");
+      } finally {
+        event.target.value = "";
+      }
+    },
+    [stopCamera]
+  );
 
   const toggleStyle = useCallback((styleId: PhotoboothStyleId) => {
     setSelectedStyles((previous) =>
@@ -133,6 +147,7 @@ export default function Page() {
 
   const onGenerate = useCallback(() => {
     if (!selectedImage || !selectedStyles.length) return;
+
     const payload = {
       imageDataUrl: selectedImage.dataUrl,
       styleIds: selectedStyles,
@@ -144,98 +159,78 @@ export default function Page() {
   }, [router, selectedImage, selectedStyles]);
 
   return (
-    <main className="relative min-h-screen bg-background">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(147,197,253,0.2),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(125,211,252,0.2),transparent_45%)]" />
-      <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-6 md:gap-8 md:px-8 md:py-8">
+    <main className="min-h-screen bg-background">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.17),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(148,163,184,0.16),transparent_50%)]" />
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 md:px-8 md:py-8">
         <header className="flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-              Photobooth Demo
-            </p>
-            <h1 className="text-2xl font-semibold md:text-3xl">Capture your moment</h1>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
+            Photobooth
+          </h1>
           <Button
-            variant="outline"
-            onClick={() => {
-              setSelectedImage(null);
-              setSelectedStyles([]);
-              setCameraError("");
-              stopCamera();
-            }}
+            variant="ghost"
+            size="icon"
+            className="size-12 rounded-full"
+            onClick={resetAll}
+            aria-label="Restart"
           >
-            Reset
+            <RotateCcw className="size-7" />
           </Button>
         </header>
 
-        <section className="rounded-2xl border bg-card/90 p-4 shadow-sm md:p-6">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <Button onClick={startCamera} variant="outline">
-              <Camera data-icon="inline-start" />
-              Start Camera
-            </Button>
-            <Button onClick={onTakePhoto} disabled={!cameraStream}>
-              <Sparkles data-icon="inline-start" />
-              Take Photo
-            </Button>
-            <Button onClick={onUploadClick} variant="secondary">
-              <ImageUp data-icon="inline-start" />
-              Upload Photo
-            </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={onFileChange}
+        <section className="mt-5 overflow-hidden rounded-3xl border bg-card/80">
+          {selectedImage ? (
+            <img
+              src={selectedImage.dataUrl}
+              alt="Selected portrait"
+              className="h-[70svh] w-full object-cover"
             />
-          </div>
-
-          <div className="overflow-hidden rounded-xl border bg-muted/50">
-            {selectedImage ? (
-              <img
-                src={selectedImage.dataUrl}
-                alt="Selected portrait"
-                className="h-[46vh] w-full object-cover md:h-[56vh]"
-              />
-            ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className={cn(
-                  "h-[46vh] w-full object-cover md:h-[56vh]",
-                  cameraStream ? "block" : "hidden"
-                )}
-              />
-            )}
-
-            {!selectedImage && !cameraStream ? (
-              <div className="flex h-[46vh] w-full flex-col items-center justify-center gap-3 text-center text-muted-foreground md:h-[56vh]">
-                <Camera />
-                <p className="text-sm">Start camera or upload a photo to begin.</p>
-              </div>
-            ) : null}
-          </div>
-
-          {cameraError ? <p className="mt-3 text-sm text-destructive">{cameraError}</p> : null}
-          <canvas ref={canvasRef} className="hidden" />
-        </section>
-
-        <section className="rounded-2xl border bg-card/90 p-4 shadow-sm md:p-6">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Choose styles</h2>
+          ) : cameraStream ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className="h-[70svh] w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-[70svh] w-full flex-col items-center justify-center gap-3 text-center">
+              <Camera className="text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Multi-select the looks you want to generate.
+                Start camera or upload a photo to begin.
               </p>
             </div>
-            <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              {selectedStyles.length} selected
-            </p>
-          </div>
+          )}
+        </section>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button onClick={startCamera} variant="outline">
+            <Camera data-icon="inline-start" />
+            Start Camera
+          </Button>
+          <Button onClick={onTakePhoto} disabled={!cameraStream}>
+            <Sparkles data-icon="inline-start" />
+            Take Photo
+          </Button>
+          <Button onClick={onUploadClick} variant="secondary">
+            <ImageUp data-icon="inline-start" />
+            Upload Photo
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onFileChange}
+          />
+        </div>
+
+        {cameraError ? (
+          <p className="mt-2 text-sm text-destructive">{cameraError}</p>
+        ) : null}
+
+        <section className="mt-5">
+          <div className="flex flex-wrap gap-2 md:gap-3">
             {PHOTOBOOTH_STYLES.map((style) => {
               const active = selectedStyles.includes(style.id);
               return (
@@ -244,29 +239,30 @@ export default function Page() {
                   type="button"
                   onClick={() => toggleStyle(style.id)}
                   className={cn(
-                    "rounded-xl border px-4 py-3 text-left transition-colors",
+                    "rounded-full border px-4 py-2 text-sm transition-colors",
                     active
-                      ? "border-primary bg-primary/10 shadow-sm"
-                      : "border-border bg-background hover:bg-accent"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background/90 hover:bg-accent"
                   )}
                 >
-                  <p className="text-sm font-medium">{style.label}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{style.description}</p>
+                  {style.label}
                 </button>
               );
             })}
           </div>
         </section>
 
-        <div className="mt-auto pb-2">
+        <div className="mt-auto flex justify-end pb-2 pt-6">
           <Button
-            className="h-11 w-full text-base"
+            className="h-11 px-6 text-base"
             disabled={!canContinue}
             onClick={onGenerate}
           >
             Generate Selected Styles
           </Button>
         </div>
+
+        <canvas ref={canvasRef} className="hidden" />
       </div>
     </main>
   );

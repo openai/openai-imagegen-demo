@@ -1,7 +1,4 @@
-import { Buffer } from "node:buffer";
-import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
+import { NextRequest } from "next/server";
 import {
   findPhotoboothStyle,
   PHOTOBOOTH_STYLES,
@@ -17,27 +14,38 @@ type RequestPayload = {
   styleIds?: unknown;
 };
 
-type StyleGenerationResult = {
-  styleId: PhotoboothStyleId;
-  label: string;
-  imageUrl: string | null;
-  error: string | null;
-};
+type EmitFn = (event: string, data: Record<string, unknown>) => Promise<void>;
+
+type StreamPayload = Record<string, unknown>;
 
 const MAX_STYLES = 8;
 
-function parseImageDataUrl(dataUrl: string) {
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) return null;
-  const [, mimeType, base64] = match;
-  if (!mimeType || !base64) return null;
-  return { mimeType, base64 };
+function isValidDataUrl(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("data:image/") &&
+    value.includes(";base64,")
+  );
 }
 
-function extensionFromMime(mimeType: string): string {
-  if (mimeType === "image/jpeg") return "jpg";
-  if (mimeType === "image/webp") return "webp";
-  return "png";
+function parseSseChunk(rawChunk: string) {
+  const lines = rawChunk.split("\n");
+  let eventName = "message";
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith(":")) continue;
+    if (line.startsWith("event:")) {
+      eventName = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (!dataLines.length) return null;
+  return { eventName, data: dataLines.join("\n") };
 }
 
 function normalizeStyleIds(raw: unknown): PhotoboothStyleId[] {
@@ -51,125 +59,319 @@ function normalizeStyleIds(raw: unknown): PhotoboothStyleId[] {
   return deduped.filter((id): id is PhotoboothStyleId => Boolean(findPhotoboothStyle(id)));
 }
 
-function readImageOutput(output: unknown): { imageUrl: string | null; error: string | null } {
-  const response = output as { data?: Array<{ b64_json?: unknown; url?: unknown }> };
-  const first = response.data?.[0];
-  if (!first) {
-    return { imageUrl: null, error: "No image returned for this style." };
-  }
-
-  if (typeof first.b64_json === "string" && first.b64_json) {
-    return { imageUrl: `data:image/png;base64,${first.b64_json}`, error: null };
-  }
-
-  if (typeof first.url === "string" && first.url) {
-    return { imageUrl: first.url, error: null };
-  }
-
-  return { imageUrl: null, error: "No image data returned for this style." };
+function toDataUrl(base64: string, outputFormat?: unknown): string {
+  const format =
+    typeof outputFormat === "string" && outputFormat.trim()
+      ? outputFormat.trim().toLowerCase()
+      : "png";
+  const normalized = format === "jpg" ? "jpeg" : format;
+  return `data:image/${normalized};base64,${base64}`;
 }
 
-export async function POST(request: Request) {
+async function relayOpenAiStream(
+  stream: ReadableStream<Uint8Array>,
+  styleId: PhotoboothStyleId,
+  emit: EmitFn
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    buffer = buffer.replace(/\r/g, "");
+
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const chunk = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+
+      const parsed = parseSseChunk(chunk);
+      if (parsed) {
+        const { eventName, data } = parsed;
+        if (data !== "[DONE]") {
+          let payload: StreamPayload;
+          try {
+            payload = JSON.parse(data) as StreamPayload;
+          } catch {
+            payload = { message: data };
+          }
+
+          const eventType =
+            typeof payload.type === "string" ? payload.type : eventName;
+
+          if (eventType === "image_edit.partial_image") {
+            const b64 = payload.b64_json;
+            if (typeof b64 === "string" && b64) {
+              await emit("style-partial", {
+                styleId,
+                imageDataUrl: toDataUrl(b64, payload.output_format),
+                partialIndex:
+                  typeof payload.partial_image_index === "number"
+                    ? payload.partial_image_index
+                    : null,
+              });
+            }
+          } else if (eventType === "image_edit.completed") {
+            const b64 = payload.b64_json;
+            if (typeof b64 === "string" && b64) {
+              await emit("style-final", {
+                styleId,
+                imageDataUrl: toDataUrl(b64, payload.output_format),
+              });
+            }
+          } else if (eventType === "error" || eventName === "error") {
+            const message =
+              typeof payload.message === "string"
+                ? payload.message
+                : "OpenAI stream error.";
+            throw new Error(message);
+          }
+        }
+      }
+
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
+}
+
+function isAbortError(error: unknown) {
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function runStyleEdit(
+  styleId: PhotoboothStyleId,
+  imageDataUrl: string,
+  apiKey: string,
+  emit: EmitFn,
+  signal: AbortSignal
+) {
+  const style = findPhotoboothStyle(styleId);
+  if (!style) return;
+
+  await emit("style-start", {
+    styleId: style.id,
+    label: style.label,
+  });
+
+  const endpointBase =
+    process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1";
+  const endpoint = `${endpointBase.replace(/\/$/, "")}/images/edits`;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+
+  const organization = process.env.OPENAI_ORG_ID?.trim();
+  if (organization) {
+    headers["OpenAI-Organization"] = organization;
+  }
+  const project = process.env.OPENAI_PROJECT_ID?.trim();
+  if (project) {
+    headers["OpenAI-Project"] = project;
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    signal,
+    body: JSON.stringify({
+      model: "gpt-image-1",
+      prompt: `${style.prompt}\n\nOutput requirements: portrait orientation (2:3 aspect ratio), preserve the exact people, poses, facial expressions, and scene composition as faithfully as possible.`,
+      images: [{ image_url: imageDataUrl }],
+      size: "1024x1536",
+      quality: "high",
+      output_format: "png",
+      input_fidelity: "high",
+      stream: true,
+      partial_images: 2,
+    }),
+  });
+
+  if (!response.ok) {
+    let message = `OpenAI request failed (${response.status}).`;
+    try {
+      const payload = (await response.json()) as { error?: { message?: string } };
+      if (typeof payload.error?.message === "string" && payload.error.message) {
+        message = payload.error.message;
+      }
+    } catch {
+      // Ignore parse failures; keep generic message.
+    }
+    throw new Error(message);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/event-stream") && response.body) {
+    await relayOpenAiStream(response.body, style.id, emit);
+    return;
+  }
+
+  const payload = (await response.json()) as {
+    data?: Array<{ b64_json?: string; output_format?: string }>;
+  };
+  const first = payload.data?.[0];
+  if (first?.b64_json) {
+    await emit("style-final", {
+      styleId: style.id,
+      imageDataUrl: toDataUrl(first.b64_json, first.output_format),
+    });
+    return;
+  }
+  throw new Error("No image was returned for this style.");
+}
+
+export async function POST(request: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) {
-    return NextResponse.json(
-      { error: { message: "OPENAI_API_KEY is not configured" } },
+    return Response.json(
+      {
+        error: { message: "OPENAI_API_KEY is not configured" },
+      },
       { status: 500 }
     );
   }
-
-  const client = new OpenAI({ apiKey });
 
   let payload: RequestPayload;
   try {
     payload = (await request.json()) as RequestPayload;
   } catch {
-    return NextResponse.json(
-      { error: { message: "Invalid JSON payload" } },
+    return Response.json(
+      { error: { message: "Invalid request body" } },
       { status: 400 }
     );
   }
 
-  const imageDataUrl =
-    typeof payload.imageDataUrl === "string" ? payload.imageDataUrl.trim() : "";
-  if (!imageDataUrl) {
-    return NextResponse.json(
-      { error: { message: "imageDataUrl is required" } },
+  if (!isValidDataUrl(payload.imageDataUrl)) {
+    return Response.json(
+      { error: { message: "imageDataUrl must be a valid base64 image data URL" } },
       { status: 400 }
     );
   }
 
   const styleIds = normalizeStyleIds(payload.styleIds);
   if (!styleIds.length) {
-    return NextResponse.json(
+    return Response.json(
       { error: { message: "At least one valid styleId is required" } },
       { status: 400 }
     );
   }
 
-  const parsed = parseImageDataUrl(imageDataUrl);
-  if (!parsed) {
-    return NextResponse.json(
-      { error: { message: "imageDataUrl must be a base64 data URL" } },
-      { status: 400 }
-    );
-  }
+  const encoder = new TextEncoder();
+  const upstreamAbortController = new AbortController();
+  const onAbort = () => upstreamAbortController.abort();
+  request.signal.addEventListener("abort", onAbort);
 
-  const { mimeType, base64 } = parsed;
-  const buffer = Buffer.from(base64, "base64");
-  const extension = extensionFromMime(mimeType);
+  let writeQueue = Promise.resolve();
 
-  const sharedRequirements =
-    "Output requirements: portrait orientation (2:3), photoreal quality, preserve the exact people, face identity, body pose, expression, and original framing. Do not add extra people or remove subjects.";
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit: EmitFn = async (event, data) => {
+        if (upstreamAbortController.signal.aborted) return;
+        const chunk = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        writeQueue = writeQueue.then(() => {
+          if (!upstreamAbortController.signal.aborted) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+        });
+        await writeQueue;
+      };
 
-  const results: StyleGenerationResult[] = [];
+      try {
+        await emit("session-start", {
+          styles: styleIds
+            .map((id) => findPhotoboothStyle(id))
+            .filter(
+              (
+                style
+              ): style is NonNullable<ReturnType<typeof findPhotoboothStyle>> =>
+                Boolean(style)
+            )
+            .map((style) => ({
+              id: style.id,
+              label: style.label,
+              description: style.description,
+            })),
+        });
 
-  for (const styleId of styleIds) {
-    const style = findPhotoboothStyle(styleId);
-    if (!style) continue;
+        const jobs = styleIds.map(async (styleId) => {
+          try {
+            await runStyleEdit(
+              styleId,
+              payload.imageDataUrl as string,
+              apiKey,
+              emit,
+              upstreamAbortController.signal
+            );
+          } catch (error) {
+            if (upstreamAbortController.signal.aborted || isAbortError(error)) {
+              return;
+            }
 
-    try {
-      const imageFile = await toFile(buffer, `photobooth-source.${extension}`, {
-        type: mimeType,
-      });
+            await emit("style-error", {
+              styleId,
+              message:
+                error instanceof Error && error.message
+                  ? error.message
+                  : "Style generation failed.",
+            });
+          }
+        });
 
-      const response = await client.images.edit({
-        model: "gpt-image-1",
-        image: imageFile,
-        prompt: `${style.prompt}\n\n${sharedRequirements}`,
-        size: "1024x1536",
-        quality: "high",
-      });
+        await Promise.allSettled(jobs);
 
-      const output = readImageOutput(response);
-      results.push({
-        styleId: style.id,
-        label: style.label,
-        imageUrl: output.imageUrl,
-        error: output.error,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : "Failed to generate this style.";
-      results.push({
-        styleId: style.id,
-        label: style.label,
-        imageUrl: null,
-        error: message,
-      });
-    }
-  }
+        if (!upstreamAbortController.signal.aborted) {
+          await emit("session-complete", {});
+          await writeQueue;
+          controller.close();
+        }
+      } catch (error) {
+        if (!upstreamAbortController.signal.aborted) {
+          try {
+            await emit("session-error", {
+              message:
+                error instanceof Error && error.message
+                  ? error.message
+                  : "Unexpected streaming error.",
+            });
+            await writeQueue;
+            controller.close();
+          } catch {
+            controller.error(error);
+          }
+        }
+      } finally {
+        request.signal.removeEventListener("abort", onAbort);
+      }
+    },
+    cancel() {
+      upstreamAbortController.abort();
+      request.signal.removeEventListener("abort", onAbort);
+    },
+  });
 
-  const availableStyles = PHOTOBOOTH_STYLES.map(({ id, label, description }) => ({
-    id,
-    label,
-    description,
-  }));
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
 
-  return NextResponse.json({
-    styles: availableStyles,
-    results,
+export async function GET() {
+  return Response.json({
+    styles: PHOTOBOOTH_STYLES.map(({ id, label, description }) => ({
+      id,
+      label,
+      description,
+    })),
   });
 }
