@@ -13,15 +13,13 @@ import { Button } from "@/components/ui/button";
 import { PHOTOBOOTH_STYLES } from "@/lib/photobooth-styles";
 import { cn } from "@/lib/utils";
 import {
-  streamPhotoboothStyles,
-  type PhotoboothStreamEventName,
-} from "@/services/soraApi";
+  streamImagegenStyles,
+  type ImagegenStreamEventName,
+} from "@/services/imagegenApi";
 
 type StoredRequest = {
   imageDataUrl: string;
   styleIds: string[];
-  source?: "camera" | "upload";
-  createdAt?: string;
 };
 
 type ResultStatus = "queued" | "streaming" | "done" | "error";
@@ -114,7 +112,7 @@ export default function ResultsPage() {
     setLoading(true);
 
     const applyEvent = (
-      eventName: PhotoboothStreamEventName,
+      eventName: ImagegenStreamEventName,
       payload: Record<string, unknown>
     ) => {
       const styleId = typeof payload.styleId === "string" ? payload.styleId : null;
@@ -187,7 +185,7 @@ export default function ResultsPage() {
       );
     };
 
-    streamPhotoboothStyles({
+    streamImagegenStyles({
       imageDataUrl: requestData.imageDataUrl,
       styleIds: requestData.styleIds,
       signal: controller.signal,

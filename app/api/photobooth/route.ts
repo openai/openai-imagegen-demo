@@ -254,6 +254,7 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  const imageDataUrl = payload.imageDataUrl;
 
   const styleIds = normalizeStyleIds(payload.styleIds);
   if (!styleIds.length) {
@@ -304,7 +305,7 @@ export async function POST(request: NextRequest) {
           try {
             await runStyleEdit(
               styleId,
-              payload.imageDataUrl as string,
+              imageDataUrl,
               apiKey,
               emit,
               upstreamAbortController.signal

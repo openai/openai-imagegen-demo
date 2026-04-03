@@ -10,8 +10,6 @@ import { cn } from "@/lib/utils";
 
 type SelectedImage = {
   dataUrl: string;
-  source: "camera" | "upload";
-  name: string;
 };
 
 const STORAGE_KEY = "photobooth.request";
@@ -100,8 +98,6 @@ export default function Page() {
     const dataUrl = canvas.toDataURL("image/png");
     setSelectedImage({
       dataUrl,
-      source: "camera",
-      name: `camera-${Date.now()}.png`,
     });
     stopCamera();
   }, [stopCamera]);
@@ -119,8 +115,6 @@ export default function Page() {
         const dataUrl = await readFileAsDataUrl(file);
         setSelectedImage({
           dataUrl,
-          source: "upload",
-          name: file.name || `upload-${Date.now()}.png`,
         });
         stopCamera();
       } catch {
@@ -151,8 +145,6 @@ export default function Page() {
     const payload = {
       imageDataUrl: selectedImage.dataUrl,
       styleIds: selectedStyles,
-      source: selectedImage.source,
-      createdAt: new Date().toISOString(),
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     router.push("/results");
