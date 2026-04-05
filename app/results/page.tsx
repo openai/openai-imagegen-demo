@@ -1,14 +1,13 @@
 "use client";
 
 import {
-  ArrowLeft,
   Download,
   Loader2,
   RefreshCcw,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PHOTOBOOTH_STYLES } from "@/lib/photobooth-styles";
 import { cn } from "@/lib/utils";
@@ -27,11 +26,9 @@ type ResultStatus = "queued" | "streaming" | "done" | "error";
 type ResultCard = {
   styleId: string;
   label: string;
-  description: string;
   status: ResultStatus;
   partialImageUrl: string | null;
   finalImageUrl: string | null;
-  partialIndex: number | null;
   error: string | null;
 };
 
@@ -49,11 +46,9 @@ function makeInitialCards(styleIds: string[]): ResultCard[] {
     return {
       styleId,
       label: style?.label ?? styleId,
-      description: style?.description ?? "Custom style",
       status: "queued",
       partialImageUrl: null,
       finalImageUrl: null,
-      partialIndex: null,
       error: null,
     };
   });
@@ -148,10 +143,6 @@ export default function ResultsPage() {
               ...card,
               status: "streaming",
               partialImageUrl: imageDataUrl,
-              partialIndex:
-                typeof payload.partialIndex === "number"
-                  ? payload.partialIndex
-                  : card.partialIndex,
             };
           }
 
@@ -208,71 +199,23 @@ export default function ResultsPage() {
     return () => controller.abort();
   }, [requestData]);
 
-  const completedImages = useMemo(
-    () =>
-      cards
-        .map((card) => ({
-          styleId: card.styleId,
-          label: card.label,
-          imageUrl: card.finalImageUrl ?? card.partialImageUrl,
-        }))
-        .filter(
-          (item): item is { styleId: string; label: string; imageUrl: string } =>
-            typeof item.imageUrl === "string" && Boolean(item.imageUrl)
-        ),
-    [cards]
-  );
-
-  const hasAnyImage = completedImages.length > 0;
-
-  const downloadAll = useCallback(() => {
-    completedImages.forEach((image) => {
-      downloadUrl(image.imageUrl, `${image.styleId}-portrait.png`);
-    });
-  }, [completedImages]);
-
   return (
     <main className="min-h-screen bg-background">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.15),transparent_50%)]" />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 md:px-8 md:py-8">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-2 md:gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-12 rounded-full"
-              onClick={() => router.push("/")}
-              aria-label="Back"
-            >
-              <ArrowLeft className="size-7" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-12 rounded-full"
-              onClick={() => {
-                sessionStorage.removeItem(STORAGE_KEY);
-                router.push("/");
-              }}
-              aria-label="Restart generation"
-            >
-              <RefreshCcw className="size-7" />
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-              Results
-            </h1>
-          </div>
-
+        <header className="flex items-center justify-end">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             className="size-12 rounded-full"
-            aria-label="Download generated images"
-            onClick={downloadAll}
-            disabled={!hasAnyImage}
+            onClick={() => {
+              sessionStorage.removeItem(STORAGE_KEY);
+              router.push("/");
+            }}
+            aria-label="Restart generation"
           >
-            <Download className="size-7" />
+            <RefreshCcw className="size-7" />
           </Button>
         </header>
 
@@ -281,7 +224,7 @@ export default function ResultsPage() {
             <img
               src={requestData.imageDataUrl}
               alt="Source"
-              className="h-[24svh] w-full rounded-2xl object-cover md:h-[30svh]"
+              className="h-[38svh] w-full rounded-2xl object-cover md:h-[50svh]"
             />
           </section>
         ) : null}
@@ -290,21 +233,11 @@ export default function ResultsPage() {
           <p className="mt-4 text-sm text-destructive">{error}</p>
         ) : null}
 
-        <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((card) => {
             const activeImage = card.finalImageUrl ?? card.partialImageUrl;
-            const isStreaming = card.status === "streaming";
-            const isDone = card.status === "done";
-            const statusLabel =
-              card.status === "queued"
-                ? "Queued"
-                : card.status === "streaming"
-                  ? card.partialIndex !== null
-                    ? `Streaming ${card.partialIndex + 1}`
-                    : "Streaming"
-                  : card.status === "done"
-                    ? "Done"
-                    : "Error";
+            const showSpinner =
+              card.status === "queued" || card.status === "streaming";
 
             return (
               <article
@@ -338,8 +271,12 @@ export default function ResultsPage() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
-                        {loading ? (
+                        {showSpinner ? (
                           <Loader2 className="animate-spin text-muted-foreground" />
+                        ) : card.status === "error" ? (
+                          <span className="px-3 text-center text-sm text-destructive">
+                            {card.error ?? "Generation failed"}
+                          </span>
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             Waiting for output
@@ -348,35 +285,10 @@ export default function ResultsPage() {
                       </div>
                     )}
                   </div>
-
-                  <div className="flex items-start justify-between gap-3 px-3 py-3">
-                    <div>
-                      <p className="text-sm font-medium">{card.label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {card.description}
-                      </p>
-                    </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-                        isDone
-                          ? "bg-primary/15 text-primary"
-                          : isStreaming
-                            ? "bg-sky-100 text-sky-700"
-                            : card.status === "error"
-                              ? "bg-destructive/15 text-destructive"
-                              : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {statusLabel}
-                    </span>
-                  </div>
                 </button>
 
-                <div className="flex items-center justify-between px-3 pb-3">
-                  <p className="text-xs text-muted-foreground">
-                    {card.error ?? (isDone ? "Final image ready" : "Generating...")}
-                  </p>
+                <div className="flex items-center justify-between px-3 py-3">
+                  <p className="text-base font-medium">{card.label}</p>
                   {activeImage ? (
                     <Button
                       size="sm"

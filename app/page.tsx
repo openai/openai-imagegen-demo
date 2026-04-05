@@ -1,9 +1,9 @@
 "use client";
 
-import { Camera, ImageUp, RotateCcw, Sparkles } from "lucide-react";
+import { Camera, ImageUp, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, DragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PHOTOBOOTH_STYLES, type PhotoboothStyleId } from "@/lib/photobooth-styles";
 import { cn } from "@/lib/utils";
@@ -39,6 +39,7 @@ export default function Page() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [selectedStyles, setSelectedStyles] = useState<PhotoboothStyleId[]>([]);
   const [cameraError, setCameraError] = useState<string>("");
+  const [isDragActive, setDragActive] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -71,6 +72,7 @@ export default function Page() {
   const startCamera = useCallback(async () => {
     setCameraError("");
     setSelectedImage(null);
+    stopCamera();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
@@ -80,7 +82,7 @@ export default function Page() {
     } catch {
       setCameraError("Camera access failed. You can still upload an image.");
     }
-  }, []);
+  }, [stopCamera]);
 
   const onTakePhoto = useCallback(() => {
     const video = videoRef.current;
@@ -106,24 +108,55 @@ export default function Page() {
     fileInputRef.current?.click();
   }, []);
 
+  const handleUploadFile = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        setCameraError("Please drop or upload an image file.");
+        return;
+      }
+      try {
+        const dataUrl = await readFileAsDataUrl(file);
+        setSelectedImage({ dataUrl });
+        stopCamera();
+      } catch {
+        setCameraError("Unable to process uploaded image.");
+      }
+    },
+    [stopCamera]
+  );
+
   const onFileChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-
-      try {
-        const dataUrl = await readFileAsDataUrl(file);
-        setSelectedImage({
-          dataUrl,
-        });
-        stopCamera();
-      } catch {
-        setCameraError("Unable to process uploaded image.");
-      } finally {
-        event.target.value = "";
-      }
+      await handleUploadFile(file);
+      event.target.value = "";
     },
-    [stopCamera]
+    [handleUploadFile]
+  );
+
+  const onDragOver = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragActive(true);
+  }, []);
+
+  const onDragLeave = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setDragActive(false);
+    }
+  }, []);
+
+  const onDrop = useCallback(
+    async (event: DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      setDragActive(false);
+      const file = event.dataTransfer.files?.[0];
+      if (!file) return;
+      await handleUploadFile(file);
+    },
+    [handleUploadFile]
   );
 
   const toggleStyle = useCallback((styleId: PhotoboothStyleId) => {
@@ -170,7 +203,15 @@ export default function Page() {
           </Button>
         </header>
 
-        <section className="mt-5 overflow-hidden rounded-3xl border bg-card/80">
+        <section
+          className={cn(
+            "relative mt-5 overflow-hidden rounded-3xl border bg-card/80",
+            isDragActive ? "border-primary ring-2 ring-primary/30" : ""
+          )}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
           {selectedImage ? (
             <img
               src={selectedImage.dataUrl}
@@ -186,43 +227,71 @@ export default function Page() {
               className="h-[70svh] w-full object-cover"
             />
           ) : (
-            <div className="flex h-[70svh] w-full flex-col items-center justify-center gap-3 text-center">
-              <Camera className="text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Start camera or upload a photo to begin.
-              </p>
+            <div className="flex h-[70svh] w-full flex-col items-center justify-center gap-6 px-4 text-center">
+              <div className="flex flex-col items-center gap-3">
+                <Camera className="text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Start camera, upload a photo, or drag and drop an image.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button onClick={startCamera} variant="outline">
+                  <Camera data-icon="inline-start" />
+                  Start Camera
+                </Button>
+                <Button onClick={onUploadClick} variant="secondary">
+                  <ImageUp data-icon="inline-start" />
+                  Upload Photo
+                </Button>
+              </div>
             </div>
           )}
+
+          {cameraStream ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
+              <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-background/90 px-2 py-2 backdrop-blur-sm">
+                <Button
+                  size="icon"
+                  className="size-12 rounded-full"
+                  onClick={onTakePhoto}
+                  aria-label="Capture photo"
+                >
+                  <Camera />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-12 rounded-full"
+                  onClick={startCamera}
+                  aria-label="Restart camera"
+                >
+                  <RotateCcw />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {isDragActive ? (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-primary/10 text-sm font-medium text-primary">
+              Drop image to upload
+            </div>
+          ) : null}
         </section>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={startCamera} variant="outline">
-            <Camera data-icon="inline-start" />
-            Start Camera
-          </Button>
-          <Button onClick={onTakePhoto} disabled={!cameraStream}>
-            <Sparkles data-icon="inline-start" />
-            Take Photo
-          </Button>
-          <Button onClick={onUploadClick} variant="secondary">
-            <ImageUp data-icon="inline-start" />
-            Upload Photo
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={onFileChange}
-          />
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onFileChange}
+        />
 
         {cameraError ? (
           <p className="mt-2 text-sm text-destructive">{cameraError}</p>
         ) : null}
 
         <section className="mt-5">
-          <div className="flex flex-wrap gap-2 md:gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {PHOTOBOOTH_STYLES.map((style) => {
               const active = selectedStyles.includes(style.id);
               return (
@@ -231,13 +300,16 @@ export default function Page() {
                   type="button"
                   onClick={() => toggleStyle(style.id)}
                   className={cn(
-                    "rounded-full border px-4 py-2 text-sm transition-colors",
+                    "rounded-xl border p-3 text-left transition-colors",
                     active
-                      ? "border-primary bg-primary text-primary-foreground"
+                      ? "border-primary bg-primary/10"
                       : "border-border bg-background/90 hover:bg-accent"
                   )}
                 >
-                  {style.label}
+                  <p className="text-sm font-medium">{style.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {style.description}
+                  </p>
                 </button>
               );
             })}
