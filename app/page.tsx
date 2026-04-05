@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImageUp, RotateCcw, SlidersHorizontal, X } from "lucide-react";
+import { Camera, ImageUp, RotateCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
@@ -15,6 +15,7 @@ type SelectedImage = {
 const STORAGE_KEY = "photobooth.request";
 const MAX_SELECTED_STYLES = 4;
 const STYLE_LIMIT_TOOLTIP = "You can select up to 4 styles at a time";
+const DEFAULT_SELECTED_STYLES: PhotoboothStyleId[] = ["knitted", "digital-art"];
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -39,10 +40,11 @@ export default function Page() {
 
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
-  const [selectedStyles, setSelectedStyles] = useState<PhotoboothStyleId[]>([]);
+  const [selectedStyles, setSelectedStyles] = useState<PhotoboothStyleId[]>(() => [
+    ...DEFAULT_SELECTED_STYLES,
+  ]);
   const [cameraError, setCameraError] = useState<string>("");
   const [isDragActive, setDragActive] = useState<boolean>(false);
-  const [isPanelOpen, setPanelOpen] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -67,7 +69,7 @@ export default function Page() {
 
   const resetAll = useCallback(() => {
     setSelectedImage(null);
-    setSelectedStyles([]);
+    setSelectedStyles([...DEFAULT_SELECTED_STYLES]);
     setCameraError("");
     stopCamera();
   }, [stopCamera]);
@@ -193,45 +195,51 @@ export default function Page() {
     router.push("/results");
   }, [router, selectedImage, selectedStyles]);
 
+  const renderStyleCard = (style: (typeof PHOTOBOOTH_STYLES)[number], compact = false) => {
+    const active = selectedStyles.includes(style.id);
+    const blocked = selectedStyles.length >= MAX_SELECTED_STYLES && !active;
+
+    return (
+      <div
+        key={style.id}
+        className={cn(
+          "group relative",
+          compact ? "w-[220px] shrink-0 sm:w-[240px]" : "",
+          blocked ? "cursor-not-allowed" : ""
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => toggleStyle(style.id)}
+          disabled={blocked}
+          aria-disabled={blocked}
+          aria-pressed={active}
+          title={blocked ? STYLE_LIMIT_TOOLTIP : undefined}
+          className={cn(
+            "w-full rounded-xl border p-3 text-left transition-colors",
+            active
+              ? "border-primary bg-primary/10"
+              : "border-border bg-background/90 hover:bg-accent",
+            blocked ? "cursor-not-allowed opacity-60" : ""
+          )}
+        >
+          <p className={cn("font-medium", compact ? "text-sm" : "text-sm")}>{style.label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{style.description}</p>
+        </button>
+        {blocked ? (
+          <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden -translate-x-1/2 rounded-md bg-foreground px-2 py-1 text-xs text-background shadow-lg group-hover:block">
+            {STYLE_LIMIT_TOOLTIP}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const stylesContent = (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto p-3">
         <div className="flex flex-col gap-3">
-          {PHOTOBOOTH_STYLES.map((style) => {
-            const active = selectedStyles.includes(style.id);
-            const blocked = selectedStyles.length >= MAX_SELECTED_STYLES && !active;
-            return (
-              <div
-                key={style.id}
-                className={cn("group relative", blocked ? "cursor-not-allowed" : "")}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleStyle(style.id)}
-                  disabled={blocked}
-                  aria-disabled={blocked}
-                  title={blocked ? STYLE_LIMIT_TOOLTIP : undefined}
-                  className={cn(
-                    "w-full rounded-xl border p-3 text-left transition-colors",
-                    active
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-background/90 hover:bg-accent",
-                    blocked ? "cursor-not-allowed opacity-60" : ""
-                  )}
-                >
-                  <p className="text-sm font-medium">{style.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {style.description}
-                  </p>
-                </button>
-                {blocked ? (
-                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden -translate-x-1/2 rounded-md bg-foreground px-2 py-1 text-xs text-background shadow-lg group-hover:block">
-                    {STYLE_LIMIT_TOOLTIP}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+          {PHOTOBOOTH_STYLES.map((style) => renderStyleCard(style))}
         </div>
       </div>
 
@@ -251,7 +259,7 @@ export default function Page() {
     <main className="h-screen overflow-hidden bg-background">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.17),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(148,163,184,0.16),transparent_50%)]" />
 
-      <div className="relative flex h-full w-full gap-3 p-3 md:p-4">
+      <div className="relative flex h-full w-full flex-col gap-3 p-3 md:p-4 lg:flex-row">
         <section
           className={cn(
             "relative flex-1 overflow-hidden rounded-3xl border bg-card/80",
@@ -269,16 +277,6 @@ export default function Page() {
             aria-label="Restart"
           >
             <RotateCcw className="size-7" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-3 top-3 z-20 size-12 rounded-full bg-background/80 backdrop-blur-sm lg:hidden"
-            aria-label="Open styles panel"
-            onClick={() => setPanelOpen(true)}
-          >
-            <SlidersHorizontal className="size-7" />
           </Button>
 
           {selectedImage ? (
@@ -337,6 +335,22 @@ export default function Page() {
           ) : null}
         </section>
 
+        <div className="mt-2 space-y-3 lg:hidden">
+          <div className="-mx-1 overflow-x-auto pb-3">
+            <div className="flex min-w-max gap-3 px-1">
+              {PHOTOBOOTH_STYLES.map((style) => renderStyleCard(style, true))}
+            </div>
+          </div>
+
+          <Button
+            className="h-11 w-full text-base"
+            disabled={!canContinue}
+            onClick={onGenerate}
+          >
+            Generate Styles
+          </Button>
+        </div>
+
         <aside className="hidden h-full w-1/5 min-w-[260px] max-w-[340px] overflow-hidden rounded-3xl border bg-card/90 lg:block">
           {stylesContent}
         </aside>
@@ -355,44 +369,6 @@ export default function Page() {
           </p>
         ) : null}
       </div>
-
-      <div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
-        <Button
-          className="h-11 w-full text-base"
-          disabled={!canContinue}
-          onClick={onGenerate}
-        >
-          Generate Styles
-        </Button>
-      </div>
-
-      {isPanelOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/35 lg:hidden"
-          onClick={() => setPanelOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Style panel"
-        >
-          <aside
-            className="absolute right-0 top-0 h-full w-[82vw] max-w-sm overflow-hidden border-l bg-background"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-end border-b p-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-10 rounded-full"
-                onClick={() => setPanelOpen(false)}
-                aria-label="Close styles panel"
-              >
-                <X />
-              </Button>
-            </div>
-            {stylesContent}
-          </aside>
-        </div>
-      ) : null}
 
       <canvas ref={canvasRef} className="hidden" />
     </main>
