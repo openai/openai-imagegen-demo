@@ -245,7 +245,7 @@ export default function Page() {
 
       <div className="p-3">
         <Button
-          className="h-11 w-full text-base"
+          className="h-11 w-full rounded-xl px-5 text-base"
           disabled={!canContinue}
           onClick={onGenerate}
         >
@@ -343,7 +343,7 @@ export default function Page() {
           </div>
 
           <Button
-            className="h-11 w-full text-base"
+            className="h-11 w-full rounded-xl px-5 text-base"
             disabled={!canContinue}
             onClick={onGenerate}
           >

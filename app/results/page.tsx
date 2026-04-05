@@ -283,7 +283,7 @@ export default function ResultsPage() {
 
         <div className="flex justify-center pb-3 pt-6 md:pt-8">
           <Button
-            className="h-11 bg-black px-6 text-base text-white hover:bg-black/90"
+            className="h-11 rounded-xl bg-black px-5 text-base text-white hover:bg-black/90"
             onClick={() => {
               sessionStorage.removeItem(STORAGE_KEY);
               router.push("/");
