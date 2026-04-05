@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ImageUp, RotateCcw } from "lucide-react";
+import { Camera, ImageUp, RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
@@ -13,6 +13,8 @@ type SelectedImage = {
 };
 
 const STORAGE_KEY = "photobooth.request";
+const MAX_SELECTED_STYLES = 4;
+const STYLE_LIMIT_TOOLTIP = "You can select up to 4 styles at a time";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -40,6 +42,7 @@ export default function Page() {
   const [selectedStyles, setSelectedStyles] = useState<PhotoboothStyleId[]>([]);
   const [cameraError, setCameraError] = useState<string>("");
   const [isDragActive, setDragActive] = useState<boolean>(false);
+  const [isPanelOpen, setPanelOpen] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -163,7 +166,9 @@ export default function Page() {
     setSelectedStyles((previous) =>
       previous.includes(styleId)
         ? previous.filter((id) => id !== styleId)
-        : [...previous, styleId]
+        : previous.length >= MAX_SELECTED_STYLES
+          ? previous
+          : [...previous, styleId]
     );
   }, []);
 
@@ -183,40 +188,99 @@ export default function Page() {
     router.push("/results");
   }, [router, selectedImage, selectedStyles]);
 
+  const stylesContent = (
+    <div className="flex h-full flex-col">
+      <div className="flex-1 overflow-y-auto p-3">
+        <div className="flex flex-col gap-3">
+          {PHOTOBOOTH_STYLES.map((style) => {
+            const active = selectedStyles.includes(style.id);
+            const blocked = selectedStyles.length >= MAX_SELECTED_STYLES && !active;
+            return (
+              <div
+                key={style.id}
+                className={cn("group relative", blocked ? "cursor-not-allowed" : "")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleStyle(style.id)}
+                  disabled={blocked}
+                  aria-disabled={blocked}
+                  title={blocked ? STYLE_LIMIT_TOOLTIP : undefined}
+                  className={cn(
+                    "w-full rounded-xl border p-3 text-left transition-colors",
+                    active
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-background/90 hover:bg-accent",
+                    blocked ? "cursor-not-allowed opacity-60" : ""
+                  )}
+                >
+                  <p className="text-sm font-medium">{style.label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {style.description}
+                  </p>
+                </button>
+                {blocked ? (
+                  <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden -translate-x-1/2 rounded-md bg-foreground px-2 py-1 text-xs text-background shadow-lg group-hover:block">
+                    {STYLE_LIMIT_TOOLTIP}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="border-t p-3">
+        <Button
+          className="h-11 w-full text-base"
+          disabled={!canContinue}
+          onClick={onGenerate}
+        >
+          Generate Styles
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
-    <main className="min-h-screen bg-background">
+    <main className="h-screen overflow-hidden bg-background">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.17),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(148,163,184,0.16),transparent_50%)]" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 md:px-8 md:py-8">
-        <header className="flex items-center justify-between">
-          <h1 className="text-3xl font-semibold tracking-tight md:text-5xl">
-            Photobooth
-          </h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-12 rounded-full"
-            onClick={resetAll}
-            aria-label="Restart"
-          >
-            <RotateCcw className="size-7" />
-          </Button>
-        </header>
-
+      <div className="relative flex h-full w-full gap-3 p-3 md:p-4">
         <section
           className={cn(
-            "relative mt-5 overflow-hidden rounded-3xl border bg-card/80",
+            "relative flex-1 overflow-hidden rounded-3xl border bg-card/80",
             isDragActive ? "border-primary ring-2 ring-primary/30" : ""
           )}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
         >
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-3 top-3 z-20 size-12 rounded-full bg-background/80 backdrop-blur-sm"
+            onClick={resetAll}
+            aria-label="Restart"
+          >
+            <RotateCcw className="size-7" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute left-3 top-3 z-20 size-12 rounded-full bg-background/80 backdrop-blur-sm lg:hidden"
+            aria-label="Open styles panel"
+            onClick={() => setPanelOpen(true)}
+          >
+            <SlidersHorizontal className="size-7" />
+          </Button>
+
           {selectedImage ? (
             <img
               src={selectedImage.dataUrl}
               alt="Selected portrait"
-              className="h-[70svh] w-full object-cover"
+              className="h-full w-full object-cover"
             />
           ) : cameraStream ? (
             <video
@@ -224,10 +288,10 @@ export default function Page() {
               autoPlay
               muted
               playsInline
-              className="h-[70svh] w-full object-cover"
+              className="h-full w-full object-cover"
             />
           ) : (
-            <div className="flex h-[70svh] w-full flex-col items-center justify-center gap-6 px-4 text-center">
+            <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-4 text-center">
               <div className="flex flex-col items-center gap-3">
                 <Camera className="text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
@@ -278,6 +342,10 @@ export default function Page() {
           ) : null}
         </section>
 
+        <aside className="hidden h-full w-1/5 min-w-[260px] max-w-[340px] overflow-hidden rounded-3xl border bg-card/90 lg:block">
+          {stylesContent}
+        </aside>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -287,47 +355,51 @@ export default function Page() {
         />
 
         {cameraError ? (
-          <p className="mt-2 text-sm text-destructive">{cameraError}</p>
+          <p className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-destructive/10 px-4 py-1.5 text-sm text-destructive">
+            {cameraError}
+          </p>
         ) : null}
-
-        <section className="mt-5">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {PHOTOBOOTH_STYLES.map((style) => {
-              const active = selectedStyles.includes(style.id);
-              return (
-                <button
-                  key={style.id}
-                  type="button"
-                  onClick={() => toggleStyle(style.id)}
-                  className={cn(
-                    "rounded-xl border p-3 text-left transition-colors",
-                    active
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-background/90 hover:bg-accent"
-                  )}
-                >
-                  <p className="text-sm font-medium">{style.label}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {style.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <div className="mt-auto flex justify-end pb-2 pt-6">
-          <Button
-            className="h-11 px-6 text-base"
-            disabled={!canContinue}
-            onClick={onGenerate}
-          >
-            Generate Selected Styles
-          </Button>
-        </div>
-
-        <canvas ref={canvasRef} className="hidden" />
       </div>
+
+      <div className="fixed inset-x-3 bottom-3 z-40 lg:hidden">
+        <Button
+          className="h-11 w-full text-base"
+          disabled={!canContinue}
+          onClick={onGenerate}
+        >
+          Generate Styles
+        </Button>
+      </div>
+
+      {isPanelOpen ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/35 lg:hidden"
+          onClick={() => setPanelOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Style panel"
+        >
+          <aside
+            className="absolute right-0 top-0 h-full w-[82vw] max-w-sm overflow-hidden border-l bg-background"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-end border-b p-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-10 rounded-full"
+                onClick={() => setPanelOpen(false)}
+                aria-label="Close styles panel"
+              >
+                <X />
+              </Button>
+            </div>
+            {stylesContent}
+          </aside>
+        </div>
+      ) : null}
+
+      <canvas ref={canvasRef} className="hidden" />
     </main>
   );
 }

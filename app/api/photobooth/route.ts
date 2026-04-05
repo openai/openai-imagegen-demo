@@ -18,7 +18,7 @@ type EmitFn = (event: string, data: Record<string, unknown>) => Promise<void>;
 
 type StreamPayload = Record<string, unknown>;
 
-const MAX_STYLES = 8;
+const MAX_STYLES = 4;
 
 function isValidDataUrl(value: unknown): value is string {
   return (

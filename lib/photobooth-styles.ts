@@ -3,7 +3,8 @@ export type PhotoboothStyleId =
   | "anime"
   | "digital-art"
   | "film-noir"
-  | "watercolor";
+  | "watercolor"
+  | "pop-art";
 
 export type PhotoboothStyle = {
   id: PhotoboothStyleId;
@@ -47,6 +48,13 @@ export const PHOTOBOOTH_STYLES: PhotoboothStyle[] = [
     description: "Airy brushwork and delicate pastel atmosphere.",
     prompt:
       "Transform this photo into an elegant watercolor painting with fluid brush strokes, soft pigment bleeding, and delicate pastel depth while preserving the same subjects, proportions, composition, and expressions.",
+  },
+  {
+    id: "pop-art",
+    label: "Pop Art",
+    description: "Bold halftones, punchy colors, and poster-style energy.",
+    prompt:
+      "Transform this photo into vibrant pop art with comic-style halftone textures, bold outlines, high-contrast color blocks, and graphic poster energy while preserving the same people, expressions, and framing.",
   },
 ];
 
