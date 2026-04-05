@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  Download,
-  Loader2,
-  RefreshCcw,
-  X,
-} from "lucide-react";
+import { Download, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -108,9 +103,10 @@ export default function ResultsPage() {
 
     const applyEvent = (
       eventName: ImagegenStreamEventName,
-      payload: Record<string, unknown>
+      payload: Record<string, unknown>,
     ) => {
-      const styleId = typeof payload.styleId === "string" ? payload.styleId : null;
+      const styleId =
+        typeof payload.styleId === "string" ? payload.styleId : null;
       if (eventName === "session-error") {
         const message =
           typeof payload.message === "string"
@@ -172,7 +168,7 @@ export default function ResultsPage() {
           }
 
           return card;
-        })
+        }),
       );
     };
 
@@ -203,40 +199,12 @@ export default function ResultsPage() {
     <main className="min-h-screen bg-background">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.15),transparent_50%)]" />
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 md:px-8 md:py-8">
-        <header className="flex items-center justify-end">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-12 rounded-full"
-            onClick={() => {
-              sessionStorage.removeItem(STORAGE_KEY);
-              router.push("/");
-            }}
-            aria-label="Restart generation"
-          >
-            <RefreshCcw className="size-7" />
-          </Button>
-        </header>
-
-        {requestData ? (
-          <section className="mt-4">
-            <p className="mb-2 text-sm font-medium">Original Image</p>
-            <div className="w-36 overflow-hidden rounded-xl border bg-card/90 sm:w-44 md:w-52 lg:w-56">
-              <img
-                src={requestData.imageDataUrl}
-                alt="Source"
-                className="aspect-[2/3] w-full object-cover"
-              />
-            </div>
-          </section>
-        ) : null}
-
+      <div className="relative mx-auto flex min-h-screen w-full max-w-[1700px] flex-col p-4 md:p-8">
         {error ? (
-          <p className="mt-4 text-sm text-destructive">{error}</p>
+          <p className="mb-2 text-sm text-destructive">{error}</p>
         ) : null}
 
-        <section className="mt-5 grid gap-4 sm:grid-cols-2">
+        <section className="mt-3 grid grid-cols-2 gap-3 md:mt-4 md:grid-cols-4 md:gap-4">
           {cards.map((card) => {
             const activeImage = card.finalImageUrl ?? card.partialImageUrl;
             const showSpinner =
@@ -251,7 +219,7 @@ export default function ResultsPage() {
                   type="button"
                   className={cn(
                     "block w-full text-left",
-                    activeImage ? "cursor-zoom-in" : "cursor-default"
+                    activeImage ? "cursor-zoom-in" : "cursor-default",
                   )}
                   onClick={() => {
                     if (!activeImage) return;
@@ -269,7 +237,7 @@ export default function ResultsPage() {
                         alt={`${card.label} result`}
                         className={cn(
                           "h-full w-full object-cover transition-transform duration-500",
-                          activeImage ? "group-hover:scale-[1.02]" : ""
+                          activeImage ? "group-hover:scale-[1.02]" : "",
                         )}
                       />
                     ) : (
@@ -297,7 +265,10 @@ export default function ResultsPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => {
-                        downloadUrl(activeImage, `${card.styleId}-portrait.png`);
+                        downloadUrl(
+                          activeImage,
+                          `${card.styleId}-portrait.png`,
+                        );
                       }}
                     >
                       <Download data-icon="inline-start" />
@@ -310,8 +281,14 @@ export default function ResultsPage() {
           })}
         </section>
 
-        <div className="mt-auto flex justify-end pb-2 pt-6">
-          <Button size="sm" variant="outline" onClick={() => router.push("/")}>
+        <div className="flex justify-center pb-3 pt-6 md:pt-8">
+          <Button
+            className="h-11 bg-black px-6 text-base text-white hover:bg-black/90"
+            onClick={() => {
+              sessionStorage.removeItem(STORAGE_KEY);
+              router.push("/");
+            }}
+          >
             Create another set
           </Button>
         </div>
@@ -340,7 +317,7 @@ export default function ResultsPage() {
                 onClick={() =>
                   downloadUrl(
                     modalState.imageUrl,
-                    `${modalState.styleId}-portrait.png`
+                    `${modalState.styleId}-portrait.png`,
                   )
                 }
               >
