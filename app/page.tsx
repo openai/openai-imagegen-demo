@@ -243,7 +243,7 @@ export default function Page() {
         </div>
       </div>
 
-      <div className="border-t p-3">
+      <div className="p-3">
         <Button
           className="h-11 w-full text-base"
           disabled={!canContinue}
@@ -319,7 +319,7 @@ export default function Page() {
               <Button
                 size="icon"
                 variant="ghost"
-                className="pointer-events-auto size-14 rounded-full border border-white/70 bg-white/35 text-foreground shadow-lg backdrop-blur-md hover:bg-white/45 [&_svg]:size-6"
+                className="pointer-events-auto size-14 rounded-full bg-white/35 text-foreground shadow-[0_8px_24px_rgba(15,23,42,0.22)] backdrop-blur-md hover:bg-white/45 [&_svg]:size-6"
                 onClick={cameraStream ? onTakePhoto : startCamera}
                 aria-label={cameraStream ? "Capture photo" : "Retry"}
               >
