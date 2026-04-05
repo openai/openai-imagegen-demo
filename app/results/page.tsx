@@ -220,12 +220,15 @@ export default function ResultsPage() {
         </header>
 
         {requestData ? (
-          <section className="mt-5">
-            <img
-              src={requestData.imageDataUrl}
-              alt="Source"
-              className="h-[38svh] w-full rounded-2xl object-cover md:h-[50svh]"
-            />
+          <section className="mt-4">
+            <p className="mb-2 text-sm font-medium">Original Image</p>
+            <div className="w-36 overflow-hidden rounded-xl border bg-card/90 sm:w-44 md:w-52 lg:w-56">
+              <img
+                src={requestData.imageDataUrl}
+                alt="Source"
+                className="aspect-[2/3] w-full object-cover"
+              />
+            </div>
           </section>
         ) : null}
 
@@ -233,7 +236,7 @@ export default function ResultsPage() {
           <p className="mt-4 text-sm text-destructive">{error}</p>
         ) : null}
 
-        <section className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-5 grid gap-4 sm:grid-cols-2">
           {cards.map((card) => {
             const activeImage = card.finalImageUrl ?? card.partialImageUrl;
             const showSpinner =
@@ -323,42 +326,48 @@ export default function ResultsPage() {
           onClick={() => setModalState(null)}
         >
           <div
-            className="relative flex h-full w-full flex-col"
+            className="absolute inset-x-4 top-4 z-10 flex items-center justify-between md:inset-x-8"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-4 md:px-8">
-              <p className="text-sm font-medium text-white md:text-base">
-                {modalState.label}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    downloadUrl(
-                      modalState.imageUrl,
-                      `${modalState.styleId}-portrait.png`
-                    )
-                  }
-                >
-                  <Download data-icon="inline-start" />
-                  Download
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  onClick={() => setModalState(null)}
-                  aria-label="Close preview"
-                >
-                  <X />
-                </Button>
-              </div>
+            <p className="rounded-full border border-white/20 bg-black/35 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-md md:text-base">
+              {modalState.label}
+            </p>
+            <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-black/35 p-1.5 backdrop-blur-md">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 rounded-full px-3 text-white hover:bg-white/15 hover:text-white"
+                onClick={() =>
+                  downloadUrl(
+                    modalState.imageUrl,
+                    `${modalState.styleId}-portrait.png`
+                  )
+                }
+              >
+                <Download data-icon="inline-start" />
+                Download
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full text-white hover:bg-white/15 hover:text-white"
+                onClick={() => setModalState(null)}
+                aria-label="Close preview"
+              >
+                <X />
+              </Button>
             </div>
-            <div className="flex flex-1 items-center justify-center p-4 md:p-8">
+          </div>
+
+          <div className="flex h-full w-full items-center justify-center p-4 pt-20 md:p-10 md:pt-24">
+            <div
+              className="flex max-h-full max-w-full items-center justify-center"
+              onClick={(event) => event.stopPropagation()}
+            >
               <img
                 src={modalState.imageUrl}
                 alt={`${modalState.label} full preview`}
-                className="max-h-full max-w-full rounded-xl object-contain"
+                className="max-h-[calc(100svh-8rem)] max-w-[calc(100vw-2rem)] rounded-xl object-contain shadow-2xl md:max-h-[calc(100svh-10rem)] md:max-w-[calc(100vw-5rem)]"
               />
             </div>
           </div>

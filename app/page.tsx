@@ -99,7 +99,12 @@ export default function Page() {
     const context = canvas.getContext("2d");
     if (!context) return;
 
+    // Keep captured output consistent with the mirrored camera preview.
+    context.save();
+    context.translate(width, 0);
+    context.scale(-1, 1);
     context.drawImage(video, 0, 0, width, height);
+    context.restore();
     const dataUrl = canvas.toDataURL("image/png");
     setSelectedImage({
       dataUrl,
@@ -288,7 +293,7 @@ export default function Page() {
               autoPlay
               muted
               playsInline
-              className="h-full w-full object-cover"
+              className="h-full w-full -scale-x-100 object-cover"
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-4 text-center">
@@ -311,27 +316,17 @@ export default function Page() {
             </div>
           )}
 
-          {cameraStream ? (
+          {cameraStream || selectedImage ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
-              <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-background/90 px-2 py-2 backdrop-blur-sm">
-                <Button
-                  size="icon"
-                  className="size-12 rounded-full"
-                  onClick={onTakePhoto}
-                  aria-label="Capture photo"
-                >
-                  <Camera />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="size-12 rounded-full"
-                  onClick={startCamera}
-                  aria-label="Restart camera"
-                >
-                  <RotateCcw />
-                </Button>
-              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="pointer-events-auto size-14 rounded-full border border-white/70 bg-white/35 text-foreground shadow-lg backdrop-blur-md hover:bg-white/45 [&_svg]:size-6"
+                onClick={cameraStream ? onTakePhoto : startCamera}
+                aria-label={cameraStream ? "Capture photo" : "Retry"}
+              >
+                {cameraStream ? <Camera /> : <RotateCcw />}
+              </Button>
             </div>
           ) : null}
 
