@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     "Capture or upload a photo, apply multiple imagegen styles, and stream results in real time.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.png",
   },
 };
 
