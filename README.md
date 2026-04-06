@@ -9,7 +9,7 @@ This repo contains a simple photobooth demo built with Next.js that lets you cap
 
 Learn more about image generation and see examples in our [dedicated guide](https://developers.openai.com/api/docs/guides/image-generation).
 
-![Screenshot of the photobooth input screen](./public/photobooth-input.png)
+![Screenshot of the photobooth input screen](./public/screenshot.jpg)
 
 ## Features
 
