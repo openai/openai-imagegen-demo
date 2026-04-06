@@ -1,9 +1,11 @@
+import { IMAGEGEN_API_ROUTE } from "@/lib/constants";
+import { parseSseChunk } from "@/lib/sse";
+import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
+
 export interface HttpError<T = unknown> extends Error {
   status: number;
   payload: T;
 }
-
-const API_BASE = "/api" as const;
 
 const parseJson = async <T = unknown>(response: Response): Promise<T> => {
   const text = await response.text();
@@ -37,7 +39,7 @@ export type ImagegenStreamEventName =
 
 export interface StreamImagegenRequest {
   imageDataUrl: string;
-  styleIds: string[];
+  styleIds: PhotoboothStyleId[];
   signal?: AbortSignal;
   onEvent: (
     eventName: ImagegenStreamEventName,
@@ -45,38 +47,13 @@ export interface StreamImagegenRequest {
   ) => void;
 }
 
-type SseChunk = {
-  eventName: string;
-  data: string;
-};
-
-const parseSseChunk = (rawChunk: string): SseChunk | null => {
-  const lines = rawChunk.split("\n");
-  let eventName = "message";
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (!line || line.startsWith(":")) continue;
-    if (line.startsWith("event:")) {
-      eventName = line.slice(6).trim();
-      continue;
-    }
-    if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
-    }
-  }
-
-  if (!dataLines.length) return null;
-  return { eventName, data: dataLines.join("\n") };
-};
-
 export const streamImagegenStyles = async ({
   imageDataUrl,
   styleIds,
   signal,
   onEvent,
 }: StreamImagegenRequest): Promise<void> => {
-  const response = await fetch(`${API_BASE}/photobooth`, {
+  const response = await fetch(IMAGEGEN_API_ROUTE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageDataUrl, styleIds }),

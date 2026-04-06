@@ -1,9 +1,20 @@
 import { NextRequest } from "next/server";
 import {
+  OPENAI_IMAGE_INPUT_FIDELITY,
+  OPENAI_IMAGE_MODEL,
+  OPENAI_IMAGE_OUTPUT_FORMAT,
+  OPENAI_IMAGE_OUTPUT_REQUIREMENTS,
+  OPENAI_IMAGE_PARTIAL_IMAGES,
+  OPENAI_IMAGE_QUALITY,
+  OPENAI_IMAGE_SIZE,
+} from "@/lib/constants";
+import { normalizePhotoboothStyleIds } from "@/lib/photobooth-style-utils";
+import {
   findPhotoboothStyle,
   PHOTOBOOTH_STYLES,
   type PhotoboothStyleId,
 } from "@/lib/photobooth-styles";
+import { formatSseChunk, parseSseChunk } from "@/lib/sse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,45 +29,12 @@ type EmitFn = (event: string, data: Record<string, unknown>) => Promise<void>;
 
 type StreamPayload = Record<string, unknown>;
 
-const MAX_STYLES = 4;
-
 function isValidDataUrl(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.startsWith("data:image/") &&
     value.includes(";base64,")
   );
-}
-
-function parseSseChunk(rawChunk: string) {
-  const lines = rawChunk.split("\n");
-  let eventName = "message";
-  const dataLines: string[] = [];
-
-  for (const line of lines) {
-    if (!line || line.startsWith(":")) continue;
-    if (line.startsWith("event:")) {
-      eventName = line.slice(6).trim();
-      continue;
-    }
-    if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
-    }
-  }
-
-  if (!dataLines.length) return null;
-  return { eventName, data: dataLines.join("\n") };
-}
-
-function normalizeStyleIds(raw: unknown): PhotoboothStyleId[] {
-  if (!Array.isArray(raw)) return [];
-  const ids = raw
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
-  const deduped = Array.from(new Set(ids)).slice(0, MAX_STYLES);
-  return deduped.filter((id): id is PhotoboothStyleId => Boolean(findPhotoboothStyle(id)));
 }
 
 function toDataUrl(base64: string, outputFormat?: unknown): string {
@@ -182,15 +160,15 @@ async function runStyleEdit(
     headers,
     signal,
     body: JSON.stringify({
-      model: "gpt-image-1",
-      prompt: `${style.prompt}\n\nOutput requirements: portrait orientation (2:3 aspect ratio), preserve the exact people, poses, facial expressions, and scene composition as faithfully as possible.`,
+      model: OPENAI_IMAGE_MODEL,
+      prompt: `${style.prompt}\n\n${OPENAI_IMAGE_OUTPUT_REQUIREMENTS}`,
       images: [{ image_url: imageDataUrl }],
-      size: "1024x1536",
-      quality: "high",
-      output_format: "png",
-      input_fidelity: "high",
+      size: OPENAI_IMAGE_SIZE,
+      quality: OPENAI_IMAGE_QUALITY,
+      output_format: OPENAI_IMAGE_OUTPUT_FORMAT,
+      input_fidelity: OPENAI_IMAGE_INPUT_FIDELITY,
       stream: true,
-      partial_images: 2,
+      partial_images: OPENAI_IMAGE_PARTIAL_IMAGES,
     }),
   });
 
@@ -256,7 +234,7 @@ export async function POST(request: NextRequest) {
   }
   const imageDataUrl = payload.imageDataUrl;
 
-  const styleIds = normalizeStyleIds(payload.styleIds);
+  const styleIds = normalizePhotoboothStyleIds(payload.styleIds);
   if (!styleIds.length) {
     return Response.json(
       { error: { message: "At least one valid styleId is required" } },
@@ -275,7 +253,7 @@ export async function POST(request: NextRequest) {
     async start(controller) {
       const emit: EmitFn = async (event, data) => {
         if (upstreamAbortController.signal.aborted) return;
-        const chunk = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+        const chunk = formatSseChunk(event, data);
         writeQueue = writeQueue.then(() => {
           if (!upstreamAbortController.signal.aborted) {
             controller.enqueue(encoder.encode(chunk));

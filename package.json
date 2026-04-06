@@ -1,5 +1,5 @@
 {
-  "name": "photobooth-imagegen-demo",
+  "name": "openai-photobooth-imagegen-demo",
   "version": "0.1.0",
   "private": true,
   "scripts": {

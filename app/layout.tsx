@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Photobooth Demo",
-  description: "Capture or upload a photo, apply selected styles, and view results.",
+  title: APP_NAME,
+  description:
+    "Capture or upload a photo, apply multiple imagegen styles, and stream results in real time.",
   icons: {
     icon: "/favicon.ico",
   },
