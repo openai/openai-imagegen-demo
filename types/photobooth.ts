@@ -2,6 +2,7 @@ import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
 
 export type SelectedImage = {
   dataUrl: string;
+  source: "camera" | "upload";
 };
 
 export type PhotoboothRequestPayload = {
@@ -25,4 +26,3 @@ export type ResultPreviewState = {
   imageUrl: string;
   styleId: PhotoboothStyleId;
 } | null;
-

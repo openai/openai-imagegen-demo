@@ -82,6 +82,7 @@ export default function HomePage() {
           onTakePhoto={takePhoto}
           onUploadPhoto={openUploadPicker}
           selectedImageDataUrl={selectedImage?.dataUrl ?? null}
+          selectedImageSource={selectedImage?.source ?? null}
           videoRef={videoRef}
         />
 

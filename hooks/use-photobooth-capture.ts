@@ -75,7 +75,7 @@ export const usePhotoboothCapture = () => {
     context.drawImage(video, 0, 0, width, height);
     context.restore();
 
-    setSelectedImage({ dataUrl: canvas.toDataURL("image/png") });
+    setSelectedImage({ dataUrl: canvas.toDataURL("image/png"), source: "camera" });
     stopCamera();
   }, [stopCamera]);
 
@@ -92,7 +92,7 @@ export const usePhotoboothCapture = () => {
 
       try {
         const dataUrl = await readFileAsDataUrl(file);
-        setSelectedImage({ dataUrl });
+        setSelectedImage({ dataUrl, source: "upload" });
         stopCamera();
       } catch {
         setCameraError("Unable to process uploaded image.");
@@ -154,4 +154,3 @@ export const usePhotoboothCapture = () => {
     videoRef,
   };
 };
-
