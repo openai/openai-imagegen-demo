@@ -43,14 +43,18 @@ export default function ResultsPage() {
         ) : null}
 
         {cards.length ? (
-          <section className="mt-3 grid grid-cols-2 gap-3 md:mt-4 md:grid-cols-4 md:gap-4">
+          <section className="mt-3 flex flex-wrap justify-center gap-3 md:mt-4 md:gap-4">
             {cards.map((card) => (
-              <ResultImageCard
+              <div
                 key={card.styleId}
-                card={card}
-                onDownload={handleDownloadResult}
-                onOpenPreview={handleOpenPreview}
-              />
+                className="w-[calc(50%-0.375rem)] md:w-[calc(25%-0.75rem)]"
+              >
+                <ResultImageCard
+                  card={card}
+                  onDownload={handleDownloadResult}
+                  onOpenPreview={handleOpenPreview}
+                />
+              </div>
             ))}
           </section>
         ) : (

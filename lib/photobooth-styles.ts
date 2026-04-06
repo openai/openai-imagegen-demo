@@ -47,7 +47,7 @@ export const PHOTOBOOTH_STYLES: PhotoboothStyle[] = [
     label: "Futuristic Halo",
     description: "Ethereal sci-fi glow with blue tones and luminous halos.",
     prompt:
-      "Transform this photo into a futuristic, ethereal sci-fi scene with a cool blue color palette. Add soft glows around the subjects, and ambient energy fields. Use smooth gradients, holographic lighting, and slightly reflective surfaces. Keep the same people, pose, expression, but change the background to be a futuristic, sci-fi scene like a new-generation, glowing cityscape.",
+      "Transform this photo into a futuristic, ethereal sci-fi scene with a cool, vibrant blue color palette. Add soft glows around the subjects, and ambient energy fields. Use smooth gradients, holographic lighting, and slightly reflective surfaces, but make sure the colors are vibrant and the contrast is high. Keep the same people, pose, expression, but change the background to be a futuristic, sci-fi scene like a new-generation, glowing cityscape.",
   },
   {
     id: "lofi-comic",
