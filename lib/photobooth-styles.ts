@@ -3,7 +3,7 @@ export type PhotoboothStyleId =
   | "anime"
   | "digital-art"
   | "watercolor"
-  | "futuristic-halo"
+  | "futuristic"
   | "lofi-comic";
 
 export type PhotoboothStyle = {
@@ -24,7 +24,7 @@ export const PHOTOBOOTH_STYLES: PhotoboothStyle[] = [
   {
     id: "digital-art",
     label: "Digital Art",
-    description: "Bold modern illustration with crisp shapes.",
+    description: "Bold modern illustration with crisp shapes and vivid colors.",
     prompt:
       "Recreate this photo as clean modern digital art with bold shapes, smooth vector-like forms, balanced vivid colors, and crisp edges. Preserve the original people, pose, expression, and composition as closely as possible",
   },
@@ -43,11 +43,12 @@ export const PHOTOBOOTH_STYLES: PhotoboothStyle[] = [
       "Reinterpret this photo in a cinematic anime illustration style with delicate linework, painterly shading, atmospheric lighting, and soft gradients. Keep the same people, composition, expressions, and scene structure.",
   },
   {
-    id: "futuristic-halo",
-    label: "Futuristic Halo",
-    description: "Ethereal sci-fi glow with blue tones and luminous halos.",
+    id: "futuristic",
+    label: "Futuristic",
+    description:
+      "Ethereal sci-fi glow with blue tones and futuristic cityscape.",
     prompt:
-      "Transform this photo into a futuristic, ethereal sci-fi scene with a cool, vibrant blue color palette. Add soft glows around the subjects, and ambient energy fields. Use smooth gradients, holographic lighting, and slightly reflective surfaces, but make sure the colors are vibrant and the contrast is high. Keep the same people, pose, expression, but change the background to be a futuristic, sci-fi scene like a new-generation, glowing cityscape.",
+      "Transform this photo into a futuristic, ethereal sci-fi scene with a cool, vibrant blue color palette. Add neon glows around the subjects. Use smooth gradients, holographic lighting, and slightly reflective surfaces, and make sure the colors are vibrant and the contrast is high. Keep the same people, pose, expression, but change the background to be a futuristic, sci-fi scene like a new-generation, glowing cityscape with ambient energy fields.",
   },
   {
     id: "lofi-comic",
