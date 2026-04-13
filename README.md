@@ -97,3 +97,6 @@ However, we are not committing to accepting any changes at this time and will on
 
 This project is licensed under the MIT License. See [LICENSE](./LICENSE) for more details.
 You are free to use, modify, and distribute this project for any purpose, including commercial purposes.
+
+Third-party notices, including Geist font attribution, are listed in
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).

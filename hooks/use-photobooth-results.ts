@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { findPhotoboothStyle, type PhotoboothStyleId } from "@/lib/photobooth-styles";
 import { buildInitialResultCards } from "@/lib/photobooth-results";
-import { loadPhotoboothRequest } from "@/lib/photobooth-session";
+import { consumePhotoboothRequest } from "@/lib/photobooth-session";
 import type { PhotoboothRequestPayload, ResultCard } from "@/types/photobooth";
 import {
   streamImagegenStyles,
@@ -20,7 +20,7 @@ export const usePhotoboothResults = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const request = loadPhotoboothRequest();
+    const request = consumePhotoboothRequest();
     if (!request) {
       setError("No valid photo session found. Start from the home page.");
       setLoading(false);
@@ -97,6 +97,7 @@ export const usePhotoboothResults = () => {
             return {
               ...card,
               status: "error",
+              partialImageUrl: null,
               error:
                 typeof payload.message === "string"
                   ? payload.message

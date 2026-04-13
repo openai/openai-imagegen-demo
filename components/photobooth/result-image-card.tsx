@@ -14,9 +14,11 @@ export const ResultImageCard = ({
   onDownload,
   onOpenPreview,
 }: ResultImageCardProps) => {
-  const activeImage = card.finalImageUrl ?? card.partialImageUrl;
   const showPendingIndicator =
     card.status === "queued" || card.status === "streaming";
+  const activeImage =
+    card.finalImageUrl ?? (showPendingIndicator ? card.partialImageUrl : null);
+  const canDownload = card.status === "done" && Boolean(card.finalImageUrl);
   const showCenteredSpinner = showPendingIndicator && !activeImage;
   const showTopRightSpinner = showPendingIndicator && Boolean(activeImage);
 
@@ -57,6 +59,7 @@ export const ResultImageCard = ({
           </div>
 
           {activeImage ? (
+            // eslint-disable-next-line @next/next/no-img-element -- Result previews are generated data URLs.
             <img
               src={activeImage}
               alt={`${card.label} result`}
@@ -80,7 +83,7 @@ export const ResultImageCard = ({
 
       <div className="flex items-center justify-between px-3 py-3">
         <p className="text-base font-medium">{card.label}</p>
-        {activeImage ? (
+        {canDownload ? (
           <Button
             size="sm"
             variant="ghost"

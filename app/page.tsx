@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CaptureStage } from "@/components/photobooth/capture-stage";
 import { DesktopStylePanel } from "@/components/photobooth/desktop-style-panel";
 import { MobileStyleStrip } from "@/components/photobooth/mobile-style-strip";
@@ -23,6 +23,8 @@ export default function HomePage() {
     cameraError,
     cameraStream,
     fileInputRef,
+    isCameraLoading,
+    isCameraReady,
     isDragActive,
     onDragLeave,
     onDragOver,
@@ -35,9 +37,15 @@ export default function HomePage() {
     takePhoto,
     videoRef,
   } = usePhotoboothCapture();
+  const [generationError, setGenerationError] = useState("");
+
+  useEffect(() => {
+    setGenerationError("");
+  }, [selectedImage]);
 
   const onReset = useCallback(() => {
     resetCapture();
+    setGenerationError("");
     setSelectedStyles([...DEFAULT_SELECTED_STYLE_IDS]);
   }, [resetCapture]);
 
@@ -59,12 +67,23 @@ export default function HomePage() {
   const onGenerate = useCallback(() => {
     if (!selectedImage || !selectedStyles.length) return;
 
-    savePhotoboothRequest({
+    const didSave = savePhotoboothRequest({
       imageDataUrl: selectedImage.dataUrl,
       styleIds: selectedStyles,
     });
+
+    if (!didSave) {
+      setGenerationError(
+        "This image is too large to prepare. Upload a smaller image.",
+      );
+      return;
+    }
+
+    setGenerationError("");
     router.push("/results");
   }, [router, selectedImage, selectedStyles]);
+
+  const displayError = cameraError || generationError;
 
   return (
     <main className="h-screen overflow-hidden bg-background">
@@ -73,6 +92,8 @@ export default function HomePage() {
       <div className="relative flex h-full w-full flex-col gap-3 p-3 md:p-4 lg:flex-row">
         <CaptureStage
           cameraStream={cameraStream}
+          isCameraLoading={isCameraLoading}
+          isCameraReady={isCameraReady}
           isDragActive={isDragActive}
           onDragLeave={onDragLeave}
           onDragOver={onDragOver}
@@ -108,9 +129,9 @@ export default function HomePage() {
           onChange={onFileChange}
         />
 
-        {cameraError ? (
+        {displayError ? (
           <p className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-destructive/10 px-4 py-1.5 text-sm text-destructive">
-            {cameraError}
+            {displayError}
           </p>
         ) : null}
       </div>

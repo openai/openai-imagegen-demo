@@ -22,6 +22,7 @@ export type ResultCard = {
 };
 
 export type ResultPreviewState = {
+  canDownload: boolean;
   label: string;
   imageUrl: string;
   styleId: PhotoboothStyleId;

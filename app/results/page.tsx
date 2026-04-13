@@ -17,10 +17,13 @@ export default function ResultsPage() {
   const showCenteredErrorState = Boolean(error) && cards.length === 0;
 
   const handleOpenPreview = (card: ResultCard) => {
-    const imageUrl = card.finalImageUrl ?? card.partialImageUrl;
+    const imageUrl =
+      card.finalImageUrl ??
+      (card.status === "streaming" ? card.partialImageUrl : null);
     if (!imageUrl) return;
 
     setModalState({
+      canDownload: card.status === "done" && Boolean(card.finalImageUrl),
       label: card.label,
       imageUrl,
       styleId: card.styleId,
@@ -28,10 +31,9 @@ export default function ResultsPage() {
   };
 
   const handleDownloadResult = (card: ResultCard) => {
-    const imageUrl = card.finalImageUrl ?? card.partialImageUrl;
-    if (!imageUrl) return;
+    if (card.status !== "done" || !card.finalImageUrl) return;
 
-    downloadUrl(imageUrl, `${card.styleId}-portrait.png`);
+    downloadUrl(card.finalImageUrl, `${card.styleId}-portrait.png`);
   };
 
   return (
@@ -91,7 +93,7 @@ export default function ResultsPage() {
         modalState={modalState}
         onClose={() => setModalState(null)}
         onDownload={() => {
-          if (!modalState) return;
+          if (!modalState?.canDownload) return;
           downloadUrl(modalState.imageUrl, `${modalState.styleId}-portrait.png`);
         }}
       />

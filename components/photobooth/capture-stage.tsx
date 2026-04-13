@@ -1,10 +1,12 @@
-import { Camera, ImageUp, RotateCcw, X } from "lucide-react";
+import { Camera, ImageUp, Loader2, RotateCcw, X } from "lucide-react";
 import type { DragEvent, RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type CaptureStageProps = {
   cameraStream: MediaStream | null;
+  isCameraLoading: boolean;
+  isCameraReady: boolean;
   isDragActive: boolean;
   onDragLeave: (event: DragEvent<HTMLElement>) => void;
   onDragOver: (event: DragEvent<HTMLElement>) => void;
@@ -20,6 +22,8 @@ type CaptureStageProps = {
 
 export const CaptureStage = ({
   cameraStream,
+  isCameraLoading,
+  isCameraReady,
   isDragActive,
   onDragLeave,
   onDragOver,
@@ -58,6 +62,7 @@ export const CaptureStage = ({
       ) : null}
 
       {selectedImageDataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Selected photos are local data URLs.
         <img
           src={selectedImageDataUrl}
           alt="Selected portrait"
@@ -92,6 +97,15 @@ export const CaptureStage = ({
         </div>
       )}
 
+      {cameraStream && isCameraLoading ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/20 text-muted-foreground backdrop-blur-sm">
+          <div className="flex items-center gap-2 rounded-full bg-background/85 px-3 py-2 text-sm shadow-sm">
+            <Loader2 className="size-4 animate-spin" />
+            Starting camera...
+          </div>
+        </div>
+      ) : null}
+
       {showBottomAction ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
           <Button
@@ -99,6 +113,7 @@ export const CaptureStage = ({
             variant="ghost"
             className="pointer-events-auto size-14 rounded-full bg-white/35 text-foreground shadow-[0_8px_24px_rgba(15,23,42,0.22)] backdrop-blur-md hover:bg-white/45 [&_svg]:size-6"
             onClick={cameraStream ? onTakePhoto : onStartCamera}
+            disabled={cameraStream ? !isCameraReady : false}
             aria-label={cameraStream ? "Capture photo" : "Retry"}
           >
             {cameraStream ? <Camera /> : <RotateCcw />}

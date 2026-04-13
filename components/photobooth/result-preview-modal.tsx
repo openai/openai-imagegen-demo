@@ -31,15 +31,17 @@ export const ResultPreviewModal = ({
           {modalState.label}
         </p>
         <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-black/35 p-1.5 backdrop-blur-md">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 rounded-full px-3 text-white hover:bg-white/15 hover:text-white"
-            onClick={onDownload}
-          >
-            <Download data-icon="inline-start" />
-            Download
-          </Button>
+          {modalState.canDownload ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 rounded-full px-3 text-white hover:bg-white/15 hover:text-white"
+              onClick={onDownload}
+            >
+              <Download data-icon="inline-start" />
+              Download
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"
@@ -57,6 +59,7 @@ export const ResultPreviewModal = ({
           className="flex max-h-full max-w-full items-center justify-center"
           onClick={(event) => event.stopPropagation()}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element -- Result previews are generated data URLs. */}
           <img
             src={modalState.imageUrl}
             alt={`${modalState.label} full preview`}
@@ -67,4 +70,3 @@ export const ResultPreviewModal = ({
     </div>
   );
 };
-
