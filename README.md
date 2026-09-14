@@ -109,16 +109,3 @@ You are free to use, modify, and distribute this project for any purpose, includ
 
 Third-party notices, including Geist font attribution, are listed in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
-
-## Verification
-
-```bash
-npm run lint
-npx tsc --noEmit
-npm test
-npm run build
-```
-
-Regression tests use simulated API responses and do not generate billable images. API/session tests cover model selection, storage handling, interrupted streams, completed-image preservation, and request-size limits. If local filesystem watching hits `EMFILE`, run `WATCHPACK_POLLING=true npm run dev`.
-
-The `next.postcss` override keeps Next.js 15 on a patched PostCSS release. Remove it when the chosen Next.js version includes PostCSS 8.5.28 or newer.
