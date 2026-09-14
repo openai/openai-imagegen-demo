@@ -13,12 +13,13 @@ import {
   type PhotoboothStyleId,
 } from "@/lib/photobooth-styles";
 import { formatSseChunk, parseSseChunk } from "@/lib/sse";
-import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS, isImageModelId, type ImageModelId } from "@/lib/image-models";
-import { isSupportedImageDataUrl, MAX_REQUEST_BODY_BYTES } from "@/lib/image-input";
+import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 
 type RequestPayload = {
   model?: unknown;
@@ -33,6 +34,14 @@ type StreamPayload = Record<string, unknown>;
 type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; message: string; status: number };
+
+function isImageDataUrl(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.startsWith("data:image/") &&
+    value.includes(";base64,")
+  );
+}
 
 async function readJsonPayload(
   request: NextRequest,
@@ -284,9 +293,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!isSupportedImageDataUrl(payload.imageDataUrl)) {
+  if (!isImageDataUrl(payload.imageDataUrl)) {
     return Response.json(
-      { error: { message: "Use a valid base64 PNG, JPEG, or WebP image of at most 10 MiB." } },
+      { error: { message: "imageDataUrl must be a valid base64 image data URL" } },
       { status: 400 }
     );
   }
@@ -418,8 +427,6 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return Response.json({
-    models: IMAGE_MODELS,
-    defaultModel: DEFAULT_IMAGE_MODEL,
     styles: PHOTOBOOTH_STYLES.map(({ id, label, description }) => ({
       id,
       label,

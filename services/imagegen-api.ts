@@ -106,13 +106,26 @@ export const streamImagegenStyles = async ({
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let completed = false;
-  const dispatch = (eventName: ImagegenStreamEventName, payload: Record<string, unknown>) => {
-    if (eventName === "session-complete") completed = true;
-    if (eventName === "session-error") {
-      throw new Error(typeof payload.message === "string" ? payload.message : "Image generation failed.");
+  const dispatchChunk = (chunk: string): boolean => {
+    const parsed = parseSseChunk(chunk);
+    if (!parsed || parsed.data === "[DONE]") return false;
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(parsed.data) as Record<string, unknown>;
+    } catch {
+      payload = { message: parsed.data };
     }
-    onEvent(eventName, payload);
+
+    if (parsed.eventName === "session-error") {
+      throw new Error(
+        typeof payload.message === "string"
+          ? payload.message
+          : "Image generation failed.",
+      );
+    }
+    onEvent(parsed.eventName as ImagegenStreamEventName, payload);
+    return parsed.eventName === "session-complete";
   };
 
   try {
@@ -128,16 +141,7 @@ export const streamImagegenStyles = async ({
         const chunk = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
 
-        const parsed = parseSseChunk(chunk);
-        if (parsed && parsed.data !== "[DONE]") {
-          let payload: Record<string, unknown>;
-          try {
-            payload = JSON.parse(parsed.data) as Record<string, unknown>;
-          } catch {
-            payload = { message: parsed.data };
-          }
-          dispatch(parsed.eventName as ImagegenStreamEventName, payload);
-        }
+        if (dispatchChunk(chunk)) return;
 
         boundary = buffer.indexOf("\n\n");
       }
@@ -145,19 +149,8 @@ export const streamImagegenStyles = async ({
 
     buffer += decoder.decode();
     const remaining = buffer.trim();
-    if (remaining) {
-      const parsed = parseSseChunk(remaining);
-      if (parsed && parsed.data !== "[DONE]") {
-        let payload: Record<string, unknown>;
-        try {
-          payload = JSON.parse(parsed.data) as Record<string, unknown>;
-        } catch {
-          payload = { message: parsed.data };
-        }
-        dispatch(parsed.eventName as ImagegenStreamEventName, payload);
-      }
-    }
-    if (!completed) throw new Error("Connection closed before generation finished. Please try again.");
+    if (remaining && dispatchChunk(remaining)) return;
+    throw new Error("Connection closed before generation finished. Please try again.");
   } finally {
     await reader.cancel().catch(() => {});
     reader.releaseLock();

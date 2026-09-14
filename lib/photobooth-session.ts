@@ -1,7 +1,6 @@
 import { PHOTOBOOTH_SESSION_STORAGE_KEY } from "@/lib/constants";
 import { normalizePhotoboothStyleIds } from "@/lib/photobooth-style-utils";
 import { DEFAULT_IMAGE_MODEL, isImageModelId } from "@/lib/image-models";
-import { isSupportedImageDataUrl } from "@/lib/image-input";
 import type { PhotoboothRequestPayload } from "@/types/photobooth";
 
 const hasSessionStorage = () => typeof window !== "undefined";
@@ -31,7 +30,9 @@ export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
 
     if (
       !parsed ||
-      !isSupportedImageDataUrl(parsed.imageDataUrl)
+      typeof parsed.imageDataUrl !== "string" ||
+      !parsed.imageDataUrl.startsWith("data:image/") ||
+      !parsed.imageDataUrl.includes(";base64,")
     ) {
       return null;
     }

@@ -84,30 +84,3 @@ for (const failure of ["network", "truncated", "late-error"]) {
     await expect(retry).toHaveCount(0);
   });
 }
-
-for (const width of [20, 4096]) {
-  test(`convert a ${width}x1 SVG upload to a nonempty supported PNG`, async ({ page }) => {
-    let submittedImage = "";
-    await page.route("**/api/photobooth", async (route) => {
-      const payload = route.request().postDataJSON();
-      submittedImage = payload.imageDataUrl;
-      const body = payload.styleIds.map((styleId: string) => `event: style-final\ndata: ${JSON.stringify({ styleId, imageDataUrl: submittedImage })}\n\n`).join("") + 'event: session-complete\ndata: {}\n\n';
-      await route.fulfill({ status: 200, contentType: "text/event-stream", body });
-    });
-    await page.goto("/");
-    await page.locator('input[type="file"]').setInputFiles({
-      name: "portrait.svg", mimeType: "image/svg+xml",
-      buffer: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="1"><rect width="100%" height="100%" fill="red"/></svg>`),
-    });
-    await page.getByRole("button", { name: "Generate Styles", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Download", exact: true })).toHaveCount(2);
-    expect(submittedImage).toMatch(/^data:image\/png;base64,/);
-    const dimensions = await page.evaluate(async (src) => {
-      const img = new Image();
-      img.src = src;
-      await img.decode();
-      return [img.naturalWidth, img.naturalHeight];
-    }, submittedImage);
-    expect(dimensions).toEqual([Math.min(width, 1536), 1]);
-  });
-}

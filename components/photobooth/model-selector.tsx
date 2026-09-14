@@ -8,7 +8,6 @@ export type ModelSelectorProps = {
 
 export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorProps) {
   const id = useId();
-  const model = IMAGE_MODELS.find((option) => option.id === selectedModel);
 
   return (
     <div className="space-y-1.5">
@@ -17,16 +16,12 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
         id={id}
         value={selectedModel}
         onChange={(event) => onModelChange(event.target.value as ImageModelId)}
-        aria-describedby={`${id}-description`}
         className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {IMAGE_MODELS.map((option) => (
           <option key={option.id} value={option.id}>{option.label}</option>
         ))}
       </select>
-      <p id={`${id}-description`} className="text-xs text-muted-foreground">
-        {model?.description}
-      </p>
     </div>
   );
 }

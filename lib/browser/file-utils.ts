@@ -40,15 +40,14 @@ export const resizeImageDataUrl = async (
   const image = await loadImage(dataUrl);
   const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
 
-  if (!longestSide) throw new Error("Image has no pixels.");
-  if (longestSide <= maxDimension && (!outputType || outputType === getDataUrlMimeType(dataUrl))) {
+  if (!longestSide || longestSide <= maxDimension) {
     return dataUrl;
   }
 
-  const scale = Math.min(1, maxDimension / longestSide);
+  const scale = maxDimension / longestSide;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  canvas.width = Math.round(image.naturalWidth * scale);
+  canvas.height = Math.round(image.naturalHeight * scale);
 
   const context = canvas.getContext("2d");
   if (!context) {
@@ -66,9 +65,7 @@ export const resizeImageFileAsDataUrl = async (
   const dataUrl = await readFileAsDataUrl(file);
   return resizeImageDataUrl(dataUrl, {
     maxDimension,
-    outputType: ["image/png", "image/jpeg", "image/webp"].includes(file.type)
-      ? file.type
-      : "image/png",
+    outputType: file.type,
   });
 };
 

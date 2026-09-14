@@ -8,7 +8,6 @@ import { normalizePhotoboothStyleIds } from "../lib/photobooth-style-utils";
 import { streamImagegenStyles } from "../services/imagegen-api";
 import { formatSseChunk } from "../lib/sse";
 import { middleware } from "../middleware";
-import { isSupportedImageDataUrl, MAX_IMAGE_BYTES, MAX_REQUEST_BODY_BYTES } from "../lib/image-input";
 
 const imageDataUrl = "data:image/png;base64,aGVsbG8=";
 const styleIds = ["knitted"] as const;
@@ -151,26 +150,45 @@ test("a completed upstream image remains successful if its connection subsequent
   }
 });
 
-test("reject oversized request bodies and malformed or unsupported image data before OpenAI", async (t) => {
+test("reject oversized requests even with an absent or inaccurate Content-Length", async (t) => {
   t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected upstream request"); });
-  const large = new NextRequest("http://localhost/api/photobooth", {
-    method: "POST", body: '"' + 'x'.repeat(16 * 1024 * 1024) + '"',
-  });
-  assert.equal((await POST(large)).status, 413);
-  for (const imageDataUrl of ["data:image/png;base64,", "data:image/png;base64,%%%", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,a==="]) {
-    assert.equal((await POST(request({ imageDataUrl, styleIds }))).status, 400);
+  const limit = 16 * 1024 * 1024;
+  for (const declaredLength of [undefined, "1", String(limit + 1)]) {
+    const oversized = new NextRequest("http://localhost/api/photobooth", {
+      method: "POST",
+      headers: declaredLength ? { "Content-Length": declaredLength } : {},
+      body: "x".repeat(limit + 1),
+    });
+    assert.equal((await POST(oversized)).status, 413);
   }
 });
 
-test("image and request limits include exact boundaries and cannot be bypassed with a small Content-Length", async () => {
-  const dataUrl = (size: number) => `data:image/png;base64,${Buffer.alloc(size).toString("base64")}`;
-  assert.equal(isSupportedImageDataUrl(dataUrl(MAX_IMAGE_BYTES)), true);
-  assert.equal(isSupportedImageDataUrl(dataUrl(MAX_IMAGE_BYTES + 1)), false);
-  for (const declaredLength of ["1", String(MAX_REQUEST_BODY_BYTES + 1)]) {
-    const large = new NextRequest("http://localhost/api/photobooth", {
-      method: "POST", headers: { "Content-Length": declaredLength },
-      body: "x".repeat(MAX_REQUEST_BODY_BYTES + 1),
+test("client treats session completion as terminal and cancels the reader", async (t) => {
+  const encoder = new TextEncoder();
+  for (const trailingEvent of [false, true]) {
+    let reads = 0;
+    let cancelled = false;
+    const events: string[] = [];
+    const response = new Response(new ReadableStream({
+      pull(controller) {
+        if (reads++ > 0) {
+          controller.error(new TypeError("late network error"));
+          return;
+        }
+        const body = formatSseChunk("style-final", { styleId: "knitted", imageDataUrl })
+          + formatSseChunk("session-complete", {})
+          + (trailingEvent ? formatSseChunk("session-error", { message: "late server error" }) : "");
+        controller.enqueue(encoder.encode(body));
+      },
+      cancel() { cancelled = true; },
+    }, { highWaterMark: 0 }), { headers: { "Content-Type": "text/event-stream" } });
+    t.mock.method(globalThis, "fetch", async () => response);
+    await streamImagegenStyles({
+      model: DEFAULT_IMAGE_MODEL, imageDataUrl, styleIds: [...styleIds],
+      onEvent: (event) => events.push(event),
     });
-    assert.equal((await POST(large)).status, 413);
+    assert.deepEqual(events, ["style-final", "session-complete"]);
+    assert.equal(reads, 1);
+    assert.equal(cancelled, true);
   }
 });

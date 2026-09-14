@@ -2,12 +2,10 @@ export const IMAGE_MODELS = [
   {
     id: "gpt-image-2.5-sunburst",
     label: "GPT Image 2.5 · Sunburst",
-    description: "Precise edits and faithful details.",
   },
   {
     id: "gpt-image-2.5-flare",
     label: "GPT Image 2.5 · Flare",
-    description: "Fast, high-quality image generation.",
   },
 ] as const;
 

@@ -72,7 +72,7 @@ The app should now be running at [http://localhost:3000](http://localhost:3000).
 
 ## Input limits and deployment
 
-Uploads are resized to a longest side of 1536 pixels. The browser converts other decodable image formats to PNG; the API accepts base64 PNG, JPEG, or WebP images up to 10 MiB and JSON request bodies up to 16 MiB.
+Uploads are resized to a longest side of 1536 pixels. The API limits JSON request bodies to 16 MiB.
 
 Keep `OPENAI_API_KEY` on the server in an environment variable or ignored `.env.local` file. This demo has no user authentication or rate limiting: the Origin/Referer check only restricts browser requests. Before exposing it publicly, add authentication and per-user generation limits at the app or gateway so callers cannot spend your API quota. Bind local-only runs with `npm run dev -- --hostname 127.0.0.1`.
 
@@ -121,6 +121,6 @@ npm run test:e2e
 npm run build
 ```
 
-Regression tests use simulated API responses and do not generate billable images. Browser tests cover both model choices at desktop and mobile widths, interrupted streams, completed-image preservation, failed-style retries, and upload conversion. If local filesystem watching hits `EMFILE`, run `WATCHPACK_POLLING=true npm run dev`.
+Regression tests use simulated API responses and do not generate billable images. Browser tests cover both model choices at desktop and mobile widths, interrupted streams, completed-image preservation, failed-style retries, and request-size limits. If local filesystem watching hits `EMFILE`, run `WATCHPACK_POLLING=true npm run dev`.
 
 The `next.postcss` override keeps Next.js 15 on a patched PostCSS release. Remove it when the chosen Next.js version includes PostCSS 8.5.28 or newer.
