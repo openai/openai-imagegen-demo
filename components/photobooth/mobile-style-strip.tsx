@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { StyleOptionsList } from "@/components/photobooth/style-options-list";
+import { ModelSelector, type ModelSelectorProps } from "@/components/photobooth/model-selector";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
 
-type MobileStyleStripProps = {
+type MobileStyleStripProps = ModelSelectorProps & {
   canGenerate: boolean;
   onGenerate: () => void;
   onToggleStyle: (styleId: PhotoboothStyleId) => void;
@@ -14,8 +15,11 @@ export const MobileStyleStrip = ({
   onGenerate,
   onToggleStyle,
   selectedStyleIds,
+  selectedModel,
+  onModelChange,
 }: MobileStyleStripProps) => (
-  <div className="mt-2 space-y-3 lg:hidden">
+  <div className="mt-2 shrink-0 space-y-3 lg:hidden">
+    <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
     <div className="-mx-1 overflow-x-auto pb-3">
       <StyleOptionsList
         compact

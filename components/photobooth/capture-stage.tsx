@@ -38,7 +38,7 @@ export const CaptureStage = ({
   return (
     <section
       className={cn(
-        "relative flex-1 overflow-hidden rounded-3xl border bg-card/80",
+        "relative min-h-[40dvh] flex-1 overflow-hidden rounded-3xl border bg-card/80 lg:min-h-0",
         isDragActive ? "border-primary ring-2 ring-primary/30" : "",
       )}
       onDragOver={onDragOver}

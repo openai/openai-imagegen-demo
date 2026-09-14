@@ -1,6 +1,7 @@
 import { IMAGEGEN_API_ROUTE } from "@/lib/constants";
 import { parseSseChunk } from "@/lib/sse";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
+import type { ImageModelId } from "@/lib/image-models";
 
 export interface HttpError<T = unknown> extends Error {
   status: number;
@@ -18,8 +19,9 @@ const parseJson = async <T = unknown>(response: Response): Promise<T> => {
 };
 
 const buildHttpError = <T>(response: Response, payload: T): HttpError<T> => {
+  const detail = (payload as { error?: string | { message?: string } })?.error;
   const message =
-    (payload as { error?: { message?: string } })?.error?.message ||
+    (typeof detail === "string" ? detail : detail?.message) ||
     response.statusText ||
     "Request failed";
   const error = new Error(message) as HttpError<T>;
@@ -38,6 +40,7 @@ export type ImagegenStreamEventName =
   | "session-complete";
 
 export interface StreamImagegenRequest {
+  model: ImageModelId;
   imageDataUrl: string;
   styleIds: PhotoboothStyleId[];
   signal?: AbortSignal;
@@ -48,6 +51,7 @@ export interface StreamImagegenRequest {
 }
 
 export const streamImagegenStyles = async ({
+  model,
   imageDataUrl,
   styleIds,
   signal,
@@ -56,7 +60,7 @@ export const streamImagegenStyles = async ({
   const response = await fetch(IMAGEGEN_API_ROUTE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageDataUrl, styleIds }),
+    body: JSON.stringify({ imageDataUrl, styleIds, model }),
     signal,
   });
 
@@ -102,20 +106,47 @@ export const streamImagegenStyles = async ({
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let completed = false;
+  const dispatch = (eventName: ImagegenStreamEventName, payload: Record<string, unknown>) => {
+    if (eventName === "session-complete") completed = true;
+    if (eventName === "session-error") {
+      throw new Error(typeof payload.message === "string" ? payload.message : "Image generation failed.");
+    }
+    onEvent(eventName, payload);
+  };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    buffer = buffer.replace(/\r/g, "");
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r/g, "");
 
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary !== -1) {
-      const chunk = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const chunk = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
 
-      const parsed = parseSseChunk(chunk);
+        const parsed = parseSseChunk(chunk);
+        if (parsed && parsed.data !== "[DONE]") {
+          let payload: Record<string, unknown>;
+          try {
+            payload = JSON.parse(parsed.data) as Record<string, unknown>;
+          } catch {
+            payload = { message: parsed.data };
+          }
+          dispatch(parsed.eventName as ImagegenStreamEventName, payload);
+        }
+
+        boundary = buffer.indexOf("\n\n");
+      }
+    }
+
+    buffer += decoder.decode();
+    const remaining = buffer.trim();
+    if (remaining) {
+      const parsed = parseSseChunk(remaining);
       if (parsed && parsed.data !== "[DONE]") {
         let payload: Record<string, unknown>;
         try {
@@ -123,24 +154,12 @@ export const streamImagegenStyles = async ({
         } catch {
           payload = { message: parsed.data };
         }
-        onEvent(parsed.eventName as ImagegenStreamEventName, payload);
+        dispatch(parsed.eventName as ImagegenStreamEventName, payload);
       }
-
-      boundary = buffer.indexOf("\n\n");
     }
-  }
-
-  const remaining = buffer.trim();
-  if (remaining) {
-    const parsed = parseSseChunk(remaining);
-    if (parsed && parsed.data !== "[DONE]") {
-      let payload: Record<string, unknown>;
-      try {
-        payload = JSON.parse(parsed.data) as Record<string, unknown>;
-      } catch {
-        payload = { message: parsed.data };
-      }
-      onEvent(parsed.eventName as ImagegenStreamEventName, payload);
-    }
+    if (!completed) throw new Error("Connection closed before generation finished. Please try again.");
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 };

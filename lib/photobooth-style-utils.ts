@@ -17,10 +17,10 @@ export const normalizePhotoboothStyleIds = (
     .map((value) => value.trim())
     .filter(Boolean);
 
-  const uniqueStyleIds = Array.from(new Set(styleIds)).slice(0, maxStyles);
+  const uniqueStyleIds = Array.from(new Set(styleIds));
 
   return uniqueStyleIds.filter(
     (styleId): styleId is PhotoboothStyleId =>
       Boolean(findPhotoboothStyle(styleId)),
-  );
+  ).slice(0, maxStyles);
 };

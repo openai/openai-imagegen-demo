@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4)](https://tailwindcss.com/)
 
-This repo contains a simple photobooth demo built with Next.js that lets you capture or upload a portrait and create multiple image styles using the [OpenAI Image API](https://developers.openai.com/api/reference/resources/images/methods/edit) in edit mode with the [GPT Image 2 model](https://developers.openai.com/api/docs/models/gpt-image-2).
+This repo contains a simple photobooth demo built with Next.js that lets you capture or upload a portrait and create multiple image styles using the [OpenAI Image API](https://developers.openai.com/api/reference/resources/images/methods/edit) in edit mode with selectable GPT Image 2.5 variants: [Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst) (default) and [Flare](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare).
 
 Learn more about image generation and see examples in our [dedicated guide](https://developers.openai.com/api/docs/guides/image-generation).
 
@@ -14,6 +14,7 @@ Learn more about image generation and see examples in our [dedicated guide](http
 ## Features
 
 - Image capture or upload
+- Sunburst / Flare model selector on desktop and mobile
 - Built-in style presets
 - Integration with the OpenAI Image API
 - Streaming partial image generations
@@ -61,7 +62,7 @@ The app should now be running at [http://localhost:3000](http://localhost:3000).
 ## Demo flow
 
 1. Start camera and capture an image of yourself, or upload an image with people on the home screen.
-2. Select up to 4 styles from the style panel.
+2. Choose Sunburst or Flare, then select up to 4 styles from the style panel.
 3. Click `Generate Styles`.
 4. Wait for the images to be fully generated on the results screen.
 5. Click a result to preview it fullscreen.
@@ -71,8 +72,9 @@ The app should now be running at [http://localhost:3000](http://localhost:3000).
 ## Customization
 
 - Edit style labels/descriptions/prompts in `lib/photobooth-styles.ts`.
+- Edit model options and the default in `lib/image-models.ts`.
 - Change default selected styles and limits in `lib/constants.ts`.
-- Adjust generation model/size/quality defaults in `lib/constants.ts`.
+- Adjust generation size/quality defaults in `lib/constants.ts`.
 - Tune layout and component styling in `components/photobooth/*`.
 
 ## Project structure
@@ -100,3 +102,16 @@ You are free to use, modify, and distribute this project for any purpose, includ
 
 Third-party notices, including Geist font attribution, are listed in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
+## Verification
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm test
+npx playwright install chromium
+npm run test:e2e
+npm run build
+```
+
+Regression tests use simulated API responses and do not generate billable images. Browser tests cover both model choices at desktop and mobile widths, plus failed generation. If local filesystem watching hits `EMFILE`, run `WATCHPACK_POLLING=true npm run dev`.
