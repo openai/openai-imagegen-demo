@@ -8,6 +8,7 @@ import { normalizePhotoboothStyleIds } from "../lib/photobooth-style-utils";
 import { streamImagegenStyles } from "../services/imagegen-api";
 import { formatSseChunk } from "../lib/sse";
 import { middleware } from "../middleware";
+import { isSupportedImageDataUrl, MAX_IMAGE_BYTES, MAX_REQUEST_BODY_BYTES } from "../lib/image-input";
 
 const imageDataUrl = "data:image/png;base64,aGVsbG8=";
 const styleIds = ["knitted"] as const;
@@ -123,4 +124,53 @@ test("session preserves selected model, migrates old sessions, and tolerates blo
 
 test("invalid styles do not consume the selection limit", () => {
   assert.deepEqual(normalizePhotoboothStyleIds(["bad1", "bad2", "bad3", "bad4", "knitted"]), ["knitted"]);
+});
+
+test("a completed upstream image remains successful if its connection subsequently fails", async (t) => {
+  const previous = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  const encoder = new TextEncoder();
+  let reads = 0;
+  t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({
+    pull(controller) {
+      if (reads++ === 0) {
+        controller.enqueue(encoder.encode(formatSseChunk("image_edit.completed", { b64_json: "aGVsbG8=" })));
+      } else {
+        controller.error(new TypeError("network error"));
+      }
+    },
+  }), { headers: { "Content-Type": "text/event-stream" } }));
+  try {
+    const body = await (await POST(request({ imageDataUrl, styleIds }))).text();
+    assert.match(body, /event: style-final/);
+    assert.doesNotMatch(body, /event: style-error/);
+    assert.match(body, /event: session-complete/);
+  } finally {
+    if (previous === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previous;
+  }
+});
+
+test("reject oversized request bodies and malformed or unsupported image data before OpenAI", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected upstream request"); });
+  const large = new NextRequest("http://localhost/api/photobooth", {
+    method: "POST", body: '"' + 'x'.repeat(16 * 1024 * 1024) + '"',
+  });
+  assert.equal((await POST(large)).status, 413);
+  for (const imageDataUrl of ["data:image/png;base64,", "data:image/png;base64,%%%", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,a==="]) {
+    assert.equal((await POST(request({ imageDataUrl, styleIds }))).status, 400);
+  }
+});
+
+test("image and request limits include exact boundaries and cannot be bypassed with a small Content-Length", async () => {
+  const dataUrl = (size: number) => `data:image/png;base64,${Buffer.alloc(size).toString("base64")}`;
+  assert.equal(isSupportedImageDataUrl(dataUrl(MAX_IMAGE_BYTES)), true);
+  assert.equal(isSupportedImageDataUrl(dataUrl(MAX_IMAGE_BYTES + 1)), false);
+  for (const declaredLength of ["1", String(MAX_REQUEST_BODY_BYTES + 1)]) {
+    const large = new NextRequest("http://localhost/api/photobooth", {
+      method: "POST", headers: { "Content-Length": declaredLength },
+      body: "x".repeat(MAX_REQUEST_BODY_BYTES + 1),
+    });
+    assert.equal((await POST(large)).status, 413);
+  }
 });

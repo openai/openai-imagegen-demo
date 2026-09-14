@@ -14,6 +14,7 @@ import {
 } from "@/lib/photobooth-styles";
 import { formatSseChunk, parseSseChunk } from "@/lib/sse";
 import { DEFAULT_IMAGE_MODEL, IMAGE_MODELS, isImageModelId, type ImageModelId } from "@/lib/image-models";
+import { isSupportedImageDataUrl, MAX_REQUEST_BODY_BYTES } from "@/lib/image-input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,19 +34,29 @@ type ValidationResult<T> =
   | { ok: true; value: T }
   | { ok: false; message: string; status: number };
 
-function isImageDataUrl(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.startsWith("data:image/") &&
-    value.includes(";base64,")
-  );
-}
-
 async function readJsonPayload(
   request: NextRequest,
 ): Promise<ValidationResult<RequestPayload>> {
+  const tooLarge = { ok: false, message: "Request body exceeds the 16 MiB limit", status: 413 } as const;
+  if (Number(request.headers.get("content-length")) > MAX_REQUEST_BODY_BYTES) {
+    await request.body?.cancel().catch(() => {});
+    return tooLarge;
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return { ok: false, message: "Invalid request body", status: 400 };
   try {
-    const value: unknown = await request.json();
+    const decoder = new TextDecoder();
+    const chunks: string[] = [];
+    let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_REQUEST_BODY_BYTES) return tooLarge;
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+    chunks.push(decoder.decode());
+    const value: unknown = JSON.parse(chunks.join(""));
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return { ok: false, message: "Request body must be a JSON object", status: 400 };
     }
@@ -59,6 +70,9 @@ async function readJsonPayload(
       message: "Invalid request body",
       status: 400,
     };
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }
 
@@ -109,6 +123,7 @@ async function relayOpenAiSseChunk(
         styleId,
         imageDataUrl: toDataUrl(b64, payload.output_format),
       });
+      return true;
     }
   } else if (eventType === "error" || eventName === "error") {
     const message =
@@ -141,7 +156,7 @@ async function relayOpenAiStream(
         const chunk = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
 
-        await relayOpenAiSseChunk(chunk, styleId, emit);
+        if (await relayOpenAiSseChunk(chunk, styleId, emit)) return;
 
         boundary = buffer.indexOf("\n\n");
       }
@@ -269,9 +284,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!isImageDataUrl(payload.imageDataUrl)) {
+  if (!isSupportedImageDataUrl(payload.imageDataUrl)) {
     return Response.json(
-      { error: { message: "imageDataUrl must be a valid base64 image data URL" } },
+      { error: { message: "Use a valid base64 PNG, JPEG, or WebP image of at most 10 MiB." } },
       { status: 400 }
     );
   }

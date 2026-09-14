@@ -76,7 +76,7 @@ export const usePhotoboothResults = () => {
 
       setCards((previousCards) =>
         previousCards.map((card) => {
-          if (card.styleId !== styleId) return card;
+          if (card.styleId !== styleId || card.status === "done") return card;
 
           if (eventName === "style-start") {
             return {
