@@ -44,7 +44,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# browser test artifacts
-/test-results/
-/playwright-report/
+# local artifacts
 /artifacts/

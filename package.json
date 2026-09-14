@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/*.test.ts",
-    "test:e2e": "playwright test"
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -24,7 +23,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
