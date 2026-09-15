@@ -38,7 +38,7 @@ export const CaptureStage = ({
   return (
     <section
       className={cn(
-        "relative min-h-[40dvh] flex-1 overflow-hidden rounded-3xl border bg-card/80 lg:min-h-0",
+        "relative flex min-h-[40dvh] flex-1 flex-col overflow-hidden rounded-3xl border bg-card/80 lg:min-h-0",
         isDragActive ? "border-primary ring-2 ring-primary/30" : "",
       )}
       onDragOver={onDragOver}
@@ -76,7 +76,7 @@ export const CaptureStage = ({
           className="h-full w-full -scale-x-100 object-cover"
         />
       ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-6 px-4 text-center">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-6 px-4 py-8 text-center">
           <div className="flex flex-col items-center gap-3">
             <Camera className="text-muted-foreground" />
             <p className="text-sm text-muted-foreground">
