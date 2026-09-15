@@ -1,15 +1,15 @@
 export const IMAGE_MODELS = [
   {
     id: "gpt-image-2.5-sunburst",
-    label: "GPT Image 2.5 · Sunburst",
+    label: "gpt-image-2.5-sunburst",
   },
   {
     id: "gpt-image-2.5-flare",
-    label: "GPT Image 2.5 · Flare",
+    label: "gpt-image-2.5-flare",
   },
   {
     id: "gpt-image-2",
-    label: "GPT Image 2",
+    label: "gpt-image-2",
   },
 ] as const;
 
