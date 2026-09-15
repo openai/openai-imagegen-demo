@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import { resizeImageFileAsDataUrl } from "@/lib/browser/file-utils";
+import { readFileAsDataUrl } from "@/lib/browser/file-utils";
 import type { SelectedImage } from "@/types/photobooth";
 
 export const usePhotoboothCapture = () => {
@@ -110,7 +110,7 @@ export const usePhotoboothCapture = () => {
       }
 
       try {
-        const dataUrl = await resizeImageFileAsDataUrl(file);
+        const dataUrl = await readFileAsDataUrl(file);
         setSelectedImage({ dataUrl, source: "upload" });
         setCameraError("");
         stopCamera();

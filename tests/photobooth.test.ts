@@ -150,16 +150,23 @@ test("a completed upstream image remains successful if its connection subsequent
   }
 });
 
-test("reject oversized requests even with an absent or inaccurate Content-Length", async (t) => {
-  t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected upstream request"); });
-  const limit = 16 * 1024 * 1024;
-  for (const declaredLength of [undefined, "1", String(limit + 1)]) {
-    const oversized = new NextRequest("http://localhost/api/photobooth", {
-      method: "POST",
-      headers: declaredLength ? { "Content-Length": declaredLength } : {},
-      body: "x".repeat(limit + 1),
+test("forwards image payloads larger than the former 16 MiB cap unchanged", async (t) => {
+  const previous = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  const largeImage = "data:image/png;base64," + "a".repeat(17 * 1024 * 1024);
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    assert.deepEqual(JSON.parse(String(init?.body)).images, [{ image_url: largeImage }]);
+    return new Response(formatSseChunk("image_edit.completed", { b64_json: "aGVsbG8=" }), {
+      headers: { "Content-Type": "text/event-stream" },
     });
-    assert.equal((await POST(oversized)).status, 413);
+  });
+  try {
+    const response = await POST(request({ imageDataUrl: largeImage, styleIds }));
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /event: style-final/);
+  } finally {
+    if (previous === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previous;
   }
 });
 

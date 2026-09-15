@@ -19,8 +19,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
-
 type RequestPayload = {
   model?: unknown;
   imageDataUrl?: unknown;
@@ -46,26 +44,8 @@ function isImageDataUrl(value: unknown): value is string {
 async function readJsonPayload(
   request: NextRequest,
 ): Promise<ValidationResult<RequestPayload>> {
-  const tooLarge = { ok: false, message: "Request body exceeds the 16 MiB limit", status: 413 } as const;
-  if (Number(request.headers.get("content-length")) > MAX_REQUEST_BODY_BYTES) {
-    await request.body?.cancel().catch(() => {});
-    return tooLarge;
-  }
-  const reader = request.body?.getReader();
-  if (!reader) return { ok: false, message: "Invalid request body", status: 400 };
   try {
-    const decoder = new TextDecoder();
-    const chunks: string[] = [];
-    let bytes = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > MAX_REQUEST_BODY_BYTES) return tooLarge;
-      chunks.push(decoder.decode(value, { stream: true }));
-    }
-    chunks.push(decoder.decode());
-    const value: unknown = JSON.parse(chunks.join(""));
+    const value: unknown = await request.json();
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return { ok: false, message: "Request body must be a JSON object", status: 400 };
     }
@@ -79,9 +59,6 @@ async function readJsonPayload(
       message: "Invalid request body",
       status: 400,
     };
-  } finally {
-    await reader.cancel().catch(() => {});
-    reader.releaseLock();
   }
 }
 

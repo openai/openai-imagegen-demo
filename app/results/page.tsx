@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ResultImageCard } from "@/components/photobooth/result-image-card";
 import { ResultPreviewModal } from "@/components/photobooth/result-preview-modal";
 import { usePhotoboothResults } from "@/hooks/use-photobooth-results";
-import { downloadUrl, resizeImageDataUrl } from "@/lib/browser/file-utils";
+import { downloadUrl } from "@/lib/browser/file-utils";
 import { clearPhotoboothRequest } from "@/lib/photobooth-session";
 import type { ResultCard, ResultPreviewState } from "@/types/photobooth";
 import { IMAGE_MODELS } from "@/lib/image-models";
@@ -17,22 +17,15 @@ export default function ResultsPage() {
   const [modalState, setModalState] = useState<ResultPreviewState>(null);
   const showCenteredErrorState = Boolean(error) && cards.length === 0;
 
-  const handleOpenPreview = async (card: ResultCard) => {
+  const handleOpenPreview = (card: ResultCard) => {
     const imageUrl =
       card.finalImageUrl ??
       (card.status === "streaming" ? card.partialImageUrl : null);
     if (!imageUrl) return;
 
-    let previewImageUrl = imageUrl;
-    try {
-      previewImageUrl = await resizeImageDataUrl(imageUrl);
-    } catch {
-      previewImageUrl = imageUrl;
-    }
-
     setModalState({
       label: card.label,
-      imageUrl: previewImageUrl,
+      imageUrl,
       styleId: card.styleId,
     });
   };
