@@ -1,5 +1,6 @@
 import { useId } from "react";
-import { IMAGE_MODELS, type ImageModelId } from "@/lib/image-models";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { IMAGE_MODELS, isImageModelId, type ImageModelId } from "@/lib/image-models";
 
 export type ModelSelectorProps = {
   selectedModel: ImageModelId;
@@ -10,18 +11,25 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const id = useId();
 
   return (
-    <div className="space-y-1.5">
+    <div className="flex flex-col gap-2">
       <label htmlFor={id} className="text-sm font-medium">Image model</label>
-      <select
-        id={id}
+      <Select
         value={selectedModel}
-        onChange={(event) => onModelChange(event.target.value as ImageModelId)}
-        className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onValueChange={(value) => {
+          if (isImageModelId(value)) onModelChange(value);
+        }}
       >
-        {IMAGE_MODELS.map((option) => (
-          <option key={option.id} value={option.id}>{option.label}</option>
-        ))}
-      </select>
+        <SelectTrigger id={id} className="h-11 gap-2 rounded-xl bg-background px-3 shadow-none">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="rounded-xl">
+          {IMAGE_MODELS.map((option) => (
+            <SelectItem key={option.id} value={option.id} className="rounded-lg py-2 pl-3">
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

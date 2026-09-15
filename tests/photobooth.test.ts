@@ -104,8 +104,10 @@ test("session preserves selected model, migrates old sessions, and tolerates blo
     getItem: () => value, setItem: (_key: string, raw: string) => { value = raw; }, removeItem: () => { value = null; },
   } });
   try {
-    assert.equal(savePhotoboothRequest({ imageDataUrl, styleIds: [...styleIds], model: IMAGE_MODELS[1].id }), true);
-    assert.equal(loadPhotoboothRequest()?.model, IMAGE_MODELS[1].id);
+    for (const { id: model } of IMAGE_MODELS) {
+      assert.equal(savePhotoboothRequest({ imageDataUrl, styleIds: [...styleIds], model }), true);
+      assert.equal(loadPhotoboothRequest()?.model, model);
+    }
     value = JSON.stringify({ imageDataUrl, styleIds });
     assert.equal(loadPhotoboothRequest()?.model, DEFAULT_IMAGE_MODEL);
     value = JSON.stringify({ imageDataUrl, styleIds, model: "invalid" });
