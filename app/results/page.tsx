@@ -6,32 +6,26 @@ import { Button } from "@/components/ui/button";
 import { ResultImageCard } from "@/components/photobooth/result-image-card";
 import { ResultPreviewModal } from "@/components/photobooth/result-preview-modal";
 import { usePhotoboothResults } from "@/hooks/use-photobooth-results";
-import { downloadUrl, resizeImageDataUrl } from "@/lib/browser/file-utils";
+import { downloadUrl } from "@/lib/browser/file-utils";
 import { clearPhotoboothRequest } from "@/lib/photobooth-session";
 import type { ResultCard, ResultPreviewState } from "@/types/photobooth";
+import { IMAGE_MODELS } from "@/lib/image-models";
 
 export default function ResultsPage() {
   const router = useRouter();
-  const { cards, error, loading } = usePhotoboothResults();
+  const { cards, error, loading, model, retryFailedStyles } = usePhotoboothResults();
   const [modalState, setModalState] = useState<ResultPreviewState>(null);
   const showCenteredErrorState = Boolean(error) && cards.length === 0;
 
-  const handleOpenPreview = async (card: ResultCard) => {
+  const handleOpenPreview = (card: ResultCard) => {
     const imageUrl =
       card.finalImageUrl ??
       (card.status === "streaming" ? card.partialImageUrl : null);
     if (!imageUrl) return;
 
-    let previewImageUrl = imageUrl;
-    try {
-      previewImageUrl = await resizeImageDataUrl(imageUrl);
-    } catch {
-      previewImageUrl = imageUrl;
-    }
-
     setModalState({
       label: card.label,
-      imageUrl: previewImageUrl,
+      imageUrl,
       styleId: card.styleId,
     });
   };
@@ -61,6 +55,11 @@ export default function ResultsPage() {
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.15),transparent_50%)]" />
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-[1700px] flex-col p-4 md:p-8">
+        {model ? (
+          <p className="text-center text-sm text-muted-foreground">
+            {IMAGE_MODELS.find((option) => option.id === model)?.label}
+          </p>
+        ) : null}
         {showCenteredErrorState ? (
           <div className="flex flex-1 items-center justify-center">
             <p className="text-center text-sm text-destructive">{error}</p>
@@ -68,7 +67,7 @@ export default function ResultsPage() {
         ) : (
           <>
             {error ? (
-              <p className="mb-2 w-full text-center text-sm text-destructive">
+              <p role="alert" className="mb-2 w-full text-center text-sm text-destructive">
                 {error}
               </p>
             ) : null}
@@ -96,7 +95,15 @@ export default function ResultsPage() {
           </>
         )}
 
-        <div className="flex justify-center pb-3 pt-6 md:pt-8">
+        <div className="flex flex-wrap justify-center gap-3 pb-3 pt-6 md:pt-8">
+          {!loading && cards.some((card) => card.status === "error") ? (
+            <Button
+              className="h-11 rounded-xl px-5 text-base"
+              onClick={retryFailedStyles}
+            >
+              Retry failed styles
+            </Button>
+          ) : null}
           <Button
             className="h-11 rounded-xl bg-black px-5 text-base text-white hover:bg-black/90"
             onClick={() => {

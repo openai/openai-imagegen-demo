@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import {
-  OPENAI_IMAGE_MODEL,
   OPENAI_IMAGE_OUTPUT_FORMAT,
   OPENAI_IMAGE_OUTPUT_REQUIREMENTS,
   OPENAI_IMAGE_PARTIAL_IMAGES,
@@ -14,12 +13,14 @@ import {
   type PhotoboothStyleId,
 } from "@/lib/photobooth-styles";
 import { formatSseChunk, parseSseChunk } from "@/lib/sse";
+import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 type RequestPayload = {
+  model?: unknown;
   imageDataUrl?: unknown;
   styleIds?: unknown;
 };
@@ -44,9 +45,13 @@ async function readJsonPayload(
   request: NextRequest,
 ): Promise<ValidationResult<RequestPayload>> {
   try {
+    const value: unknown = await request.json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { ok: false, message: "Request body must be a JSON object", status: 400 };
+    }
     return {
       ok: true,
-      value: (await request.json()) as RequestPayload,
+      value: value as RequestPayload,
     };
   } catch {
     return {
@@ -104,6 +109,7 @@ async function relayOpenAiSseChunk(
         styleId,
         imageDataUrl: toDataUrl(b64, payload.output_format),
       });
+      return true;
     }
   } else if (eventType === "error" || eventName === "error") {
     const message =
@@ -123,28 +129,33 @@ async function relayOpenAiStream(
   const decoder = new TextDecoder();
   let buffer = "";
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    buffer = buffer.replace(/\r/g, "");
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r/g, "");
 
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary !== -1) {
-      const chunk = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const chunk = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
 
-      await relayOpenAiSseChunk(chunk, styleId, emit);
+        if (await relayOpenAiSseChunk(chunk, styleId, emit)) return;
 
-      boundary = buffer.indexOf("\n\n");
+        boundary = buffer.indexOf("\n\n");
+      }
     }
-  }
 
-  buffer += decoder.decode();
-  const remaining = buffer.trim();
-  if (remaining) {
-    await relayOpenAiSseChunk(remaining, styleId, emit);
+    buffer += decoder.decode();
+    const remaining = buffer.trim();
+    if (remaining) {
+      await relayOpenAiSseChunk(remaining, styleId, emit);
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }
 
@@ -157,6 +168,7 @@ function isAbortError(error: unknown) {
 
 async function runStyleEdit(
   styleId: PhotoboothStyleId,
+  model: ImageModelId,
   imageDataUrl: string,
   apiKey: string,
   emit: EmitFn,
@@ -190,9 +202,9 @@ async function runStyleEdit(
   const response = await fetch(endpoint, {
     method: "POST",
     headers,
-    signal,
+    signal: AbortSignal.any([signal, AbortSignal.timeout(240_000)]),
     body: JSON.stringify({
-      model: OPENAI_IMAGE_MODEL,
+      model,
       prompt: `${style.prompt}\n\n${OPENAI_IMAGE_OUTPUT_REQUIREMENTS}`,
       images: [{ image_url: imageDataUrl }],
       size: OPENAI_IMAGE_SIZE,
@@ -218,7 +230,12 @@ async function runStyleEdit(
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("text/event-stream") && response.body) {
-    await relayOpenAiStream(response.body, style.id, emit);
+    let receivedFinal = false;
+    await relayOpenAiStream(response.body, style.id, async (event, data) => {
+      if (event === "style-final") receivedFinal = true;
+      await emit(event, data);
+    });
+    if (!receivedFinal) throw new Error("Image stream ended before a final image was returned.");
     return;
   }
 
@@ -237,16 +254,6 @@ async function runStyleEdit(
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return Response.json(
-      {
-        error: { message: "OPENAI_API_KEY is not configured" },
-      },
-      { status: 500 }
-    );
-  }
-
   const bodyResult = await readJsonPayload(request);
   if (!bodyResult.ok) {
     return Response.json(
@@ -255,6 +262,13 @@ export async function POST(request: NextRequest) {
     );
   }
   const payload = bodyResult.value;
+  const model = payload.model === undefined ? DEFAULT_IMAGE_MODEL : payload.model;
+  if (!isImageModelId(model)) {
+    return Response.json(
+      { error: { message: "Select a supported image model: Sunburst or Flare." } },
+      { status: 400 },
+    );
+  }
 
   if (!isImageDataUrl(payload.imageDataUrl)) {
     return Response.json(
@@ -272,10 +286,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return Response.json(
+      {
+        error: { message: "OPENAI_API_KEY is not configured" },
+      },
+      { status: 500 }
+    );
+  }
+
   const encoder = new TextEncoder();
   const upstreamAbortController = new AbortController();
   const onAbort = () => upstreamAbortController.abort();
   request.signal.addEventListener("abort", onAbort);
+  if (request.signal.aborted) onAbort();
 
   let writeQueue = Promise.resolve();
 
@@ -294,6 +319,7 @@ export async function POST(request: NextRequest) {
 
       try {
         await emit("session-start", {
+          model,
           styles: styleIds
             .map((id) => findPhotoboothStyle(id))
             .filter(
@@ -313,6 +339,7 @@ export async function POST(request: NextRequest) {
           try {
             await runStyleEdit(
               styleId,
+              model,
               imageDataUrl,
               apiKey,
               emit,

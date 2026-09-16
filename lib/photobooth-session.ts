@@ -1,5 +1,6 @@
 import { PHOTOBOOTH_SESSION_STORAGE_KEY } from "@/lib/constants";
 import { normalizePhotoboothStyleIds } from "@/lib/photobooth-style-utils";
+import { DEFAULT_IMAGE_MODEL, isImageModelId } from "@/lib/image-models";
 import type { PhotoboothRequestPayload } from "@/types/photobooth";
 
 const hasSessionStorage = () => typeof window !== "undefined";
@@ -18,11 +19,11 @@ export const savePhotoboothRequest = (request: PhotoboothRequestPayload) => {
 export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
   if (!hasSessionStorage()) return null;
 
-  const raw = sessionStorage.getItem(PHOTOBOOTH_SESSION_STORAGE_KEY);
-  if (!raw) return null;
-
   try {
+    const raw = sessionStorage.getItem(PHOTOBOOTH_SESSION_STORAGE_KEY);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as {
+      model?: unknown;
       imageDataUrl?: unknown;
       styleIds?: unknown;
     };
@@ -38,8 +39,11 @@ export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
 
     const styleIds = normalizePhotoboothStyleIds(parsed.styleIds);
     if (!styleIds.length) return null;
+    const model = parsed.model === undefined ? DEFAULT_IMAGE_MODEL : parsed.model;
+    if (!isImageModelId(model)) return null;
 
     return {
+      model,
       imageDataUrl: parsed.imageDataUrl,
       styleIds,
     };
@@ -50,5 +54,9 @@ export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
 
 export const clearPhotoboothRequest = () => {
   if (!hasSessionStorage()) return;
-  sessionStorage.removeItem(PHOTOBOOTH_SESSION_STORAGE_KEY);
+  try {
+    sessionStorage.removeItem(PHOTOBOOTH_SESSION_STORAGE_KEY);
+  } catch {
+    // Storage can be unavailable; users should still be able to return home.
+  }
 };

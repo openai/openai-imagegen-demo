@@ -38,6 +38,19 @@ export function middleware(req: NextRequest) {
 
   const allowedOrigins = new Set(ALLOWED_FROM_ENV);
   allowedOrigins.add(req.nextUrl.origin);
+  // Next.js may normalize a loopback request URL to localhost. Preserve the
+  // actual browser-facing host so requests from 127.0.0.1 remain same-origin.
+  const host = req.headers.get("host");
+  if (host) {
+    try {
+      allowedOrigins.add(new URL(`${req.nextUrl.protocol}//${host}`).origin);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid Host header" },
+        { status: 400 },
+      );
+    }
+  }
 
   const incomingOrigin = req.headers.get("origin");
   const isAllowedOrigin =

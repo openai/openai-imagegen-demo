@@ -19,6 +19,16 @@ export const usePhotoboothResults = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  const retryFailedStyles = () => {
+    if (loading || !requestData) return;
+    const styleIds = cards
+      .filter((card) => card.status === "error")
+      .map((card) => card.styleId);
+    if (!styleIds.length) return;
+    setLoading(true);
+    setRequestData({ ...requestData, styleIds });
+  };
+
   useEffect(() => {
     const request = loadPhotoboothRequest();
     if (!request) {
@@ -35,7 +45,15 @@ export const usePhotoboothResults = () => {
     if (!requestData) return;
 
     const controller = new AbortController();
-    setCards(buildInitialResultCards(requestData.styleIds));
+    let failureMessage = "No final image received. Retry the failed styles.";
+    setCards((previousCards) => {
+      const freshCards = buildInitialResultCards(requestData.styleIds);
+      return previousCards.length
+        ? previousCards.map((card) =>
+            freshCards.find((fresh) => fresh.styleId === card.styleId) ?? card,
+          )
+        : freshCards;
+    });
     setError("");
     setLoading(true);
 
@@ -43,6 +61,7 @@ export const usePhotoboothResults = () => {
       eventName: ImagegenStreamEventName,
       payload: Record<string, unknown>,
     ) => {
+      if (controller.signal.aborted) return;
       if (eventName === "session-error") {
         const message =
           typeof payload.message === "string"
@@ -57,7 +76,7 @@ export const usePhotoboothResults = () => {
 
       setCards((previousCards) =>
         previousCards.map((card) => {
-          if (card.styleId !== styleId) return card;
+          if (card.styleId !== styleId || card.status === "done") return card;
 
           if (eventName === "style-start") {
             return {
@@ -111,6 +130,7 @@ export const usePhotoboothResults = () => {
     };
 
     streamImagegenStyles({
+      model: requestData.model,
       imageDataUrl: requestData.imageDataUrl,
       styleIds: requestData.styleIds,
       signal: controller.signal,
@@ -118,14 +138,20 @@ export const usePhotoboothResults = () => {
     })
       .catch((cause) => {
         if (controller.signal.aborted) return;
-        const message =
-          cause instanceof Error && cause.message
-            ? cause.message
-            : "Failed to generate styles.";
-        setError(message);
+        const message = cause instanceof Error ? cause.message : "";
+        failureMessage =
+          /network\s*error|failed to fetch|load failed|network request failed/i.test(message)
+            ? "Connection lost while generating images. Check that the app is running, then retry the failed styles."
+            : message || "Failed to generate styles. Retry the failed styles.";
+        setError(failureMessage);
       })
       .finally(() => {
         if (!controller.signal.aborted) {
+          setCards((previousCards) => previousCards.map((card) =>
+            card.status === "queued" || card.status === "streaming"
+              ? { ...card, status: "error", partialImageUrl: null, error: failureMessage }
+              : card,
+          ));
           setLoading(false);
         }
       });
@@ -137,5 +163,7 @@ export const usePhotoboothResults = () => {
     cards,
     error,
     loading,
+    retryFailedStyles,
+    model: requestData?.model ?? null,
   };
 };
