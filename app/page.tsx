@@ -12,7 +12,9 @@ import {
 import { savePhotoboothRequest } from "@/lib/photobooth-session";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
 import { usePhotoboothCapture } from "@/hooks/use-photobooth-capture";
-import { DEFAULT_IMAGE_MODEL, type ImageModelId } from "@/lib/image-models";
+import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
+
+const MODEL_STORAGE_KEY = "photobooth-model";
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,6 +40,24 @@ export default function HomePage() {
     videoRef,
   } = usePhotoboothCapture();
   const [generationError, setGenerationError] = useState("");
+
+  useEffect(() => {
+    try {
+      const savedModel = localStorage.getItem(MODEL_STORAGE_KEY);
+      if (isImageModelId(savedModel)) setSelectedModel(savedModel);
+    } catch {
+      // Keep the default when browser storage is unavailable.
+    }
+  }, []);
+
+  const onModelChange = useCallback((model: ImageModelId) => {
+    setSelectedModel(model);
+    try {
+      localStorage.setItem(MODEL_STORAGE_KEY, model);
+    } catch {
+      // Model selection still works without persistence.
+    }
+  }, []);
 
   useEffect(() => {
     setGenerationError("");
@@ -108,7 +128,7 @@ export default function HomePage() {
 
         <MobileStyleStrip
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onModelChange={onModelChange}
           canGenerate={canContinue}
           onGenerate={onGenerate}
           onToggleStyle={toggleStyle}
@@ -117,7 +137,7 @@ export default function HomePage() {
 
         <DesktopStylePanel
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onModelChange={onModelChange}
           canGenerate={canContinue}
           onGenerate={onGenerate}
           onToggleStyle={toggleStyle}
