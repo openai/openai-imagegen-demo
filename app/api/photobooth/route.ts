@@ -12,7 +12,7 @@ import {
   PHOTOBOOTH_STYLES,
   type PhotoboothStyleId,
 } from "@/lib/photobooth-styles";
-import { formatSseChunk, parseSseChunk } from "@/lib/sse";
+import { formatSseChunk, parseSseChunk, SseTextDecoder } from "@/lib/sse";
 import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
 
 export const runtime = "nodejs";
@@ -126,7 +126,7 @@ async function relayOpenAiStream(
   emit: EmitFn
 ) {
   const reader = stream.getReader();
-  const decoder = new TextDecoder();
+  const decoder = new SseTextDecoder();
   let buffer = "";
 
   try {
@@ -135,7 +135,6 @@ async function relayOpenAiStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
 
       let boundary = buffer.indexOf("\n\n");
       while (boundary !== -1) {

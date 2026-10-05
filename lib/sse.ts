@@ -32,3 +32,21 @@ export const formatSseChunk = (
   payload: Record<string, unknown>,
 ) => `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
 
+
+/** Decode UTF-8 and normalize SSE line endings across network chunks. */
+export class SseTextDecoder {
+  private readonly decoder = new TextDecoder();
+  private previousCarriageReturn = false;
+
+  decode(value?: Uint8Array, options?: TextDecodeOptions): string {
+    const text = this.decoder.decode(value, options);
+    if (!text) return text;
+
+    // A CR was already emitted as LF. Suppress only its optional paired LF.
+    const continued = this.previousCarriageReturn && text.startsWith("\n")
+      ? text.slice(1)
+      : text;
+    this.previousCarriageReturn = text.endsWith("\r");
+    return continued.replace(/\r\n?/g, "\n");
+  }
+}
