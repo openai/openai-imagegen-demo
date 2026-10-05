@@ -303,6 +303,7 @@ export async function POST(request: NextRequest) {
   if (request.signal.aborted) onAbort();
 
   let writeQueue = Promise.resolve();
+  let streamFinished = false;
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -365,6 +366,7 @@ export async function POST(request: NextRequest) {
         if (!upstreamAbortController.signal.aborted) {
           await emit("session-complete", {});
           await writeQueue;
+          streamFinished = true;
           controller.close();
         }
       } catch (error) {
@@ -377,16 +379,25 @@ export async function POST(request: NextRequest) {
                   : "Unexpected streaming error.",
             });
             await writeQueue;
+            streamFinished = true;
             controller.close();
           } catch {
+            streamFinished = true;
             controller.error(error);
           }
         }
       } finally {
         request.signal.removeEventListener("abort", onAbort);
+        // Aborting the upstream request does not close this response stream.
+        // Consumer cancellation already closes it, so avoid a second close there.
+        if (upstreamAbortController.signal.aborted && !streamFinished) {
+          streamFinished = true;
+          controller.close();
+        }
       }
     },
     cancel() {
+      streamFinished = true;
       upstreamAbortController.abort();
       request.signal.removeEventListener("abort", onAbort);
     },
