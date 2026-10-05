@@ -1,5 +1,5 @@
 import { IMAGEGEN_API_ROUTE } from "@/lib/constants";
-import { parseSseChunk } from "@/lib/sse";
+import { parseSseChunk, SseTextDecoder } from "@/lib/sse";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
 import type { ImageModelId } from "@/lib/image-models";
 
@@ -104,7 +104,7 @@ export const streamImagegenStyles = async ({
   }
 
   const reader = response.body.getReader();
-  const decoder = new TextDecoder();
+  const decoder = new SseTextDecoder();
   let buffer = "";
   const dispatchChunk = (chunk: string): boolean => {
     const parsed = parseSseChunk(chunk);
@@ -134,7 +134,6 @@ export const streamImagegenStyles = async ({
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
 
       let boundary = buffer.indexOf("\n\n");
       while (boundary !== -1) {
