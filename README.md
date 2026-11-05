@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4)](https://tailwindcss.com/)
 
-This repo contains a simple photobooth demo built with Next.js that lets you capture or upload a portrait and create multiple image styles using the [OpenAI Image API](https://developers.openai.com/api/reference/resources/images/methods/edit) in edit mode with selectable GPT Image 2.5 variants: [Sunburst](https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst) and [Flare](https://developers.openai.com/api/docs/models/gpt-image-2.5-flare) (default), plus [GPT Image 2](https://developers.openai.com/api/docs/models/gpt-image-2).
+This repo contains a simple photobooth demo built with Next.js that lets you capture or upload a portrait and create multiple image styles using the [OpenAI Image API](https://developers.openai.com/api/reference/resources/images/methods/edit) in edit mode with selectable GPT Image 2.6 and 2.5 Sunburst and Flare models, plus GPT Image 2. GPT Image 2.5 Flare is the default model.
 
 Learn more about image generation and see examples in our [dedicated guide](https://developers.openai.com/api/docs/guides/image-generation).
 
@@ -15,6 +15,7 @@ Learn more about image generation and see examples in our [dedicated guide](http
 
 - Image capture or upload
 - Sunburst / Flare / GPT Image 2 model selector on desktop and mobile
+- Complexity selector for GPT Image 2.6 Sunburst and Flare: low, medium, or high (default)
 - Built-in style presets
 - Integration with the OpenAI Image API
 - Streaming partial image generations
@@ -63,7 +64,7 @@ The app should now be running at [http://localhost:3000](http://localhost:3000).
 ## Demo flow
 
 1. Start camera and capture an image of yourself, or upload an image with people on the home screen.
-2. Choose Sunburst, Flare, or GPT Image 2, then select up to 4 styles from the style panel.
+2. Choose a model, set complexity if using GPT Image 2.6 (defaults to high), then select up to 4 styles from the style panel.
 3. Click `Generate Styles`.
 4. Wait for the images to be fully generated on the results screen.
 5. Click a result to preview it fullscreen.

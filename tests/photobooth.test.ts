@@ -11,6 +11,8 @@ import { middleware } from "../middleware";
 
 const imageDataUrl = "data:image/png;base64,aGVsbG8=";
 const styleIds = ["knitted"] as const;
+const complexityModels = ["gpt-image-2.6-sunburst", "gpt-image-2.6-flare"] as const;
+const complexities = ["low", "medium", "high"] as const;
 const request = (body: unknown) => new NextRequest("http://localhost/api/photobooth", {
   method: "POST", body: JSON.stringify(body),
 });
@@ -35,6 +37,13 @@ test("reject malformed request bodies and unrecognized models before calling Ope
       assert.equal(response.status, 400);
       assert.ok((await response.json()).error.message);
     }
+    for (const model of complexityModels) {
+      for (const complexity of ["auto", "invalid", null, 1, {}, []]) {
+        const response = await POST(request({ imageDataUrl, styleIds, model, complexity }));
+        assert.equal(response.status, 400);
+        assert.match((await response.json()).error.message, /complexity/);
+      }
+    }
   } finally {
     if (previous === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previous;
@@ -58,9 +67,26 @@ test("route forwards each selected variant, defaults legacy requests, and detect
       const response = await POST(request({ imageDataUrl, styleIds, model }));
       const events = await response.text();
       assert.equal(upstreamBody.model, model ?? DEFAULT_IMAGE_MODEL);
+      if (complexityModels.some((entry) => entry === model)) {
+        assert.equal(upstreamBody.complexity, "high");
+      } else {
+        assert.equal(Object.hasOwn(upstreamBody, "complexity"), false);
+      }
       assert.deepEqual(upstreamBody.images, [{ image_url: imageDataUrl }]);
       assert.match(events, /event: style-final/);
       assert.match(events, /event: session-complete/);
+    }
+    for (const { id: model } of IMAGE_MODELS) {
+      for (const complexity of complexities) {
+        const response = await POST(request({ imageDataUrl, styleIds, model, complexity }));
+        assert.equal(response.status, 200);
+        assert.match(await response.text(), /event: style-final/);
+        if (complexityModels.some((entry) => entry === model)) {
+          assert.equal(upstreamBody.complexity, complexity);
+        } else {
+          assert.equal(Object.hasOwn(upstreamBody, "complexity"), false);
+        }
+      }
     }
     complete = false;
     const events = await (await POST(request({ imageDataUrl, styleIds }))).text();
@@ -83,7 +109,7 @@ test("client sends chosen model, handles split SSE events, and reports truncated
     controller.close();
   } }), { headers: { "Content-Type": "text/event-stream" } });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => { body = String(init?.body); return response; });
-  const args = { imageDataUrl, styleIds: [...styleIds], model: IMAGE_MODELS[1].id, onEvent: (event: string) => events.push(event) };
+  const args = { imageDataUrl, styleIds: [...styleIds], model: DEFAULT_IMAGE_MODEL, onEvent: (event: string) => events.push(event) };
   await streamImagegenStyles(args);
   assert.equal(JSON.parse(body).model, "gpt-image-2.5-flare");
   assert.deepEqual(events, ["style-final", "session-complete"]);
@@ -93,6 +119,29 @@ test("client sends chosen model, handles split SSE events, and reports truncated
   await assert.rejects(streamImagegenStyles(args), /Upstream unavailable/);
   response = Response.json({ error: "Forbidden - invalid Origin/Referer" }, { status: 403 });
   await assert.rejects(streamImagegenStyles(args), /Forbidden - invalid Origin/);
+});
+
+test("client sends complexity only for GPT Image 2.6 and defaults it to high", async (t) => {
+  let body: Record<string, unknown> = {};
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    body = JSON.parse(String(init?.body));
+    return new Response(formatSseChunk("session-complete", {}), {
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  });
+  for (const { id: model } of IMAGE_MODELS) {
+    for (const complexity of [...complexities, undefined]) {
+      await streamImagegenStyles({
+        model, complexity, imageDataUrl, styleIds: [...styleIds], onEvent: () => {},
+      });
+      assert.equal(body.model, model);
+      if (complexityModels.some((entry) => entry === model)) {
+        assert.equal(body.complexity, complexity ?? "high");
+      } else {
+        assert.equal(Object.hasOwn(body, "complexity"), false);
+      }
+    }
+  }
 });
 
 test("session preserves selected model, migrates old sessions, and tolerates blocked storage", () => {
@@ -107,6 +156,17 @@ test("session preserves selected model, migrates old sessions, and tolerates blo
     for (const { id: model } of IMAGE_MODELS) {
       assert.equal(savePhotoboothRequest({ imageDataUrl, styleIds: [...styleIds], model }), true);
       assert.equal(loadPhotoboothRequest()?.model, model);
+      assert.equal(loadPhotoboothRequest()?.complexity,
+        complexityModels.some((entry) => entry === model) ? "high" : undefined);
+      for (const complexity of complexities) {
+        assert.equal(savePhotoboothRequest({ imageDataUrl, styleIds: [...styleIds], model, complexity }), true);
+        assert.equal(loadPhotoboothRequest()?.complexity,
+          complexityModels.some((entry) => entry === model) ? complexity : undefined);
+      }
+    }
+    for (const model of complexityModels) {
+      value = JSON.stringify({ imageDataUrl, styleIds, model, complexity: "invalid" });
+      assert.equal(loadPhotoboothRequest(), null);
     }
     value = JSON.stringify({ imageDataUrl, styleIds });
     assert.equal(loadPhotoboothRequest()?.model, DEFAULT_IMAGE_MODEL);

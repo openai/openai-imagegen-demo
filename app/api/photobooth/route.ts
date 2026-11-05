@@ -13,7 +13,15 @@ import {
   type PhotoboothStyleId,
 } from "@/lib/photobooth-styles";
 import { formatSseChunk, parseSseChunk } from "@/lib/sse";
-import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
+import {
+  DEFAULT_IMAGE_COMPLEXITY,
+  DEFAULT_IMAGE_MODEL,
+  isImageComplexity,
+  isImageModelId,
+  supportsImageComplexity,
+  type ImageComplexity,
+  type ImageModelId,
+} from "@/lib/image-models";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +29,7 @@ export const maxDuration = 300;
 
 type RequestPayload = {
   model?: unknown;
+  complexity?: unknown;
   imageDataUrl?: unknown;
   styleIds?: unknown;
 };
@@ -169,6 +178,7 @@ function isAbortError(error: unknown) {
 async function runStyleEdit(
   styleId: PhotoboothStyleId,
   model: ImageModelId,
+  complexity: ImageComplexity | undefined,
   imageDataUrl: string,
   apiKey: string,
   emit: EmitFn,
@@ -205,6 +215,7 @@ async function runStyleEdit(
     signal: AbortSignal.any([signal, AbortSignal.timeout(240_000)]),
     body: JSON.stringify({
       model,
+      ...(complexity !== undefined ? { complexity } : {}),
       prompt: `${style.prompt}\n\n${OPENAI_IMAGE_OUTPUT_REQUIREMENTS}`,
       images: [{ image_url: imageDataUrl }],
       size: OPENAI_IMAGE_SIZE,
@@ -265,7 +276,17 @@ export async function POST(request: NextRequest) {
   const model = payload.model === undefined ? DEFAULT_IMAGE_MODEL : payload.model;
   if (!isImageModelId(model)) {
     return Response.json(
-      { error: { message: "Select a supported image model: Sunburst or Flare." } },
+      { error: { message: "Select a supported image model." } },
+      { status: 400 },
+    );
+  }
+
+  const complexity = supportsImageComplexity(model)
+    ? payload.complexity === undefined ? DEFAULT_IMAGE_COMPLEXITY : payload.complexity
+    : undefined;
+  if (complexity !== undefined && !isImageComplexity(complexity)) {
+    return Response.json(
+      { error: { message: "Select a supported complexity: low, medium, or high." } },
       { status: 400 },
     );
   }
@@ -340,6 +361,7 @@ export async function POST(request: NextRequest) {
             await runStyleEdit(
               styleId,
               model,
+              complexity,
               imageDataUrl,
               apiKey,
               emit,

@@ -1,7 +1,12 @@
 import { IMAGEGEN_API_ROUTE } from "@/lib/constants";
 import { parseSseChunk } from "@/lib/sse";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
-import type { ImageModelId } from "@/lib/image-models";
+import {
+  DEFAULT_IMAGE_COMPLEXITY,
+  supportsImageComplexity,
+  type ImageComplexity,
+  type ImageModelId,
+} from "@/lib/image-models";
 
 export interface HttpError<T = unknown> extends Error {
   status: number;
@@ -41,6 +46,7 @@ export type ImagegenStreamEventName =
 
 export interface StreamImagegenRequest {
   model: ImageModelId;
+  complexity?: ImageComplexity;
   imageDataUrl: string;
   styleIds: PhotoboothStyleId[];
   signal?: AbortSignal;
@@ -52,6 +58,7 @@ export interface StreamImagegenRequest {
 
 export const streamImagegenStyles = async ({
   model,
+  complexity = DEFAULT_IMAGE_COMPLEXITY,
   imageDataUrl,
   styleIds,
   signal,
@@ -60,7 +67,12 @@ export const streamImagegenStyles = async ({
   const response = await fetch(IMAGEGEN_API_ROUTE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageDataUrl, styleIds, model }),
+    body: JSON.stringify({
+      imageDataUrl,
+      styleIds,
+      model,
+      ...(supportsImageComplexity(model) ? { complexity } : {}),
+    }),
     signal,
   });
 
