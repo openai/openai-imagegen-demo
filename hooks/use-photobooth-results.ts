@@ -131,6 +131,7 @@ export const usePhotoboothResults = () => {
 
     streamImagegenStyles({
       model: requestData.model,
+      complexity: requestData.complexity,
       imageDataUrl: requestData.imageDataUrl,
       styleIds: requestData.styleIds,
       signal: controller.signal,

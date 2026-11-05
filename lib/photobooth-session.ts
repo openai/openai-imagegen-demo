@@ -1,6 +1,12 @@
 import { PHOTOBOOTH_SESSION_STORAGE_KEY } from "@/lib/constants";
 import { normalizePhotoboothStyleIds } from "@/lib/photobooth-style-utils";
-import { DEFAULT_IMAGE_MODEL, isImageModelId } from "@/lib/image-models";
+import {
+  DEFAULT_IMAGE_COMPLEXITY,
+  DEFAULT_IMAGE_MODEL,
+  isImageComplexity,
+  isImageModelId,
+  supportsImageComplexity,
+} from "@/lib/image-models";
 import type { PhotoboothRequestPayload } from "@/types/photobooth";
 
 const hasSessionStorage = () => typeof window !== "undefined";
@@ -24,6 +30,7 @@ export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       model?: unknown;
+      complexity?: unknown;
       imageDataUrl?: unknown;
       styleIds?: unknown;
     };
@@ -41,9 +48,14 @@ export const loadPhotoboothRequest = (): PhotoboothRequestPayload | null => {
     if (!styleIds.length) return null;
     const model = parsed.model === undefined ? DEFAULT_IMAGE_MODEL : parsed.model;
     if (!isImageModelId(model)) return null;
+    const complexity = supportsImageComplexity(model)
+      ? parsed.complexity === undefined ? DEFAULT_IMAGE_COMPLEXITY : parsed.complexity
+      : undefined;
+    if (complexity !== undefined && !isImageComplexity(complexity)) return null;
 
     return {
       model,
+      ...(complexity !== undefined ? { complexity } : {}),
       imageDataUrl: parsed.imageDataUrl,
       styleIds,
     };

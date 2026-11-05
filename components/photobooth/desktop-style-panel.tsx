@@ -17,11 +17,18 @@ export const DesktopStylePanel = ({
   selectedStyleIds,
   selectedModel,
   onModelChange,
+  selectedComplexity,
+  onComplexityChange,
 }: DesktopStylePanelProps) => (
   <aside className="hidden h-full w-1/5 min-w-[260px] max-w-[340px] overflow-hidden rounded-3xl border bg-card/90 lg:block">
     <div className="flex h-full flex-col">
       <div className="border-b p-3">
-        <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
+        <ModelSelector
+          selectedModel={selectedModel}
+          onModelChange={onModelChange}
+          selectedComplexity={selectedComplexity}
+          onComplexityChange={onComplexityChange}
+        />
       </div>
       <div className="flex-1 overflow-y-auto p-3">
         <StyleOptionsList

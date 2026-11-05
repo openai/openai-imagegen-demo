@@ -1,5 +1,5 @@
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
-import type { ImageModelId } from "@/lib/image-models";
+import type { ImageComplexity, ImageModelId } from "@/lib/image-models";
 
 export type SelectedImage = {
   dataUrl: string;
@@ -8,6 +8,7 @@ export type SelectedImage = {
 
 export type PhotoboothRequestPayload = {
   model: ImageModelId;
+  complexity?: ImageComplexity;
   imageDataUrl: string;
   styleIds: PhotoboothStyleId[];
 };

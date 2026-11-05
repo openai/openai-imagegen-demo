@@ -12,13 +12,21 @@ import {
 import { savePhotoboothRequest } from "@/lib/photobooth-session";
 import type { PhotoboothStyleId } from "@/lib/photobooth-styles";
 import { usePhotoboothCapture } from "@/hooks/use-photobooth-capture";
-import { DEFAULT_IMAGE_MODEL, isImageModelId, type ImageModelId } from "@/lib/image-models";
+import {
+  DEFAULT_IMAGE_COMPLEXITY,
+  DEFAULT_IMAGE_MODEL,
+  isImageModelId,
+  supportsImageComplexity,
+  type ImageComplexity,
+  type ImageModelId,
+} from "@/lib/image-models";
 
 const MODEL_STORAGE_KEY = "photobooth-model";
 
 export default function HomePage() {
   const router = useRouter();
   const [selectedModel, setSelectedModel] = useState<ImageModelId>(DEFAULT_IMAGE_MODEL);
+  const [selectedComplexity, setSelectedComplexity] = useState<ImageComplexity>(DEFAULT_IMAGE_COMPLEXITY);
   const [selectedStyles, setSelectedStyles] = useState<PhotoboothStyleId[]>([
     ...DEFAULT_SELECTED_STYLE_IDS,
   ]);
@@ -89,6 +97,7 @@ export default function HomePage() {
 
     const didSave = savePhotoboothRequest({
       model: selectedModel,
+      ...(supportsImageComplexity(selectedModel) ? { complexity: selectedComplexity } : {}),
       imageDataUrl: selectedImage.dataUrl,
       styleIds: selectedStyles,
     });
@@ -102,7 +111,7 @@ export default function HomePage() {
 
     setGenerationError("");
     router.push("/results");
-  }, [router, selectedImage, selectedStyles, selectedModel]);
+  }, [router, selectedImage, selectedStyles, selectedModel, selectedComplexity]);
 
   const displayError = cameraError || generationError;
 
@@ -129,6 +138,8 @@ export default function HomePage() {
         <MobileStyleStrip
           selectedModel={selectedModel}
           onModelChange={onModelChange}
+          selectedComplexity={selectedComplexity}
+          onComplexityChange={setSelectedComplexity}
           canGenerate={canContinue}
           onGenerate={onGenerate}
           onToggleStyle={toggleStyle}
@@ -138,6 +149,8 @@ export default function HomePage() {
         <DesktopStylePanel
           selectedModel={selectedModel}
           onModelChange={onModelChange}
+          selectedComplexity={selectedComplexity}
+          onComplexityChange={setSelectedComplexity}
           canGenerate={canContinue}
           onGenerate={onGenerate}
           onToggleStyle={toggleStyle}

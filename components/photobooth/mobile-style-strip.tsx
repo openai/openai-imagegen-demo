@@ -17,9 +17,16 @@ export const MobileStyleStrip = ({
   selectedStyleIds,
   selectedModel,
   onModelChange,
+  selectedComplexity,
+  onComplexityChange,
 }: MobileStyleStripProps) => (
   <div className="mt-2 shrink-0 space-y-3 lg:hidden">
-    <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
+    <ModelSelector
+      selectedModel={selectedModel}
+      onModelChange={onModelChange}
+      selectedComplexity={selectedComplexity}
+      onComplexityChange={onComplexityChange}
+    />
     <div className="-mx-1 overflow-x-auto pb-3">
       <StyleOptionsList
         compact
