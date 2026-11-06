@@ -7,6 +7,8 @@ export const usePhotoboothCapture = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraRequestRef = useRef(0);
+  const activeStreamRef = useRef<MediaStream | null>(null);
 
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
@@ -15,10 +17,11 @@ export const usePhotoboothCapture = () => {
 
   useEffect(() => {
     return () => {
-      if (!cameraStream) return;
-      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraRequestRef.current += 1;
+      activeStreamRef.current?.getTracks().forEach((track) => track.stop());
+      activeStreamRef.current = null;
     };
-  }, [cameraStream]);
+  }, []);
 
   useEffect(() => {
     if (!cameraStream || !videoRef.current) return;
@@ -37,10 +40,10 @@ export const usePhotoboothCapture = () => {
   }, [cameraStream]);
 
   const stopCamera = useCallback(() => {
-    setCameraStream((currentStream) => {
-      currentStream?.getTracks().forEach((track) => track.stop());
-      return null;
-    });
+    cameraRequestRef.current += 1;
+    activeStreamRef.current?.getTracks().forEach((track) => track.stop());
+    activeStreamRef.current = null;
+    setCameraStream(null);
   }, []);
 
   const resetCapture = useCallback(() => {
@@ -53,15 +56,23 @@ export const usePhotoboothCapture = () => {
     setCameraError("");
     setSelectedImage(null);
     stopCamera();
+    const request = cameraRequestRef.current;
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user" },
         audio: false,
       });
+      if (request !== cameraRequestRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      activeStreamRef.current = stream;
       setCameraStream(stream);
     } catch {
-      setCameraError("Camera access failed. You can still upload an image.");
+      if (request === cameraRequestRef.current) {
+        setCameraError("Camera access failed. You can still upload an image.");
+      }
     }
   }, [stopCamera]);
 
